@@ -1,0 +1,245 @@
+.ov-root {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 15px 16px;
+  font-family: "Twemoji Country Flags", var(--font);
+  max-width: 1600px;
+}
+.ov-span-3 {
+  grid-column: 1 / -1;
+}
+.ov-span-2 {
+  grid-column: span 2;
+}
+
+/* ---------- Summary bar ---------- */
+.ov-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 0 !important;
+  height: 60px;
+  align-items: center;
+}
+.ov-sum-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 20px;
+  position: relative;
+  min-width: 0;
+}
+.ov-sum-item + .ov-sum-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 28px;
+  margin-top: -14px;
+  width: 1px;
+  background: var(--separator);
+}
+.ov-sum-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.ov-sum-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ov-sum-label {
+  font-size: 9.5px;
+  color: var(--text-2);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.ov-sum-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.1px;
+}
+
+/* ---------- Generic stat bits ---------- */
+.ov-big {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ov-sub {
+  font-size: 9.5px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---------- Traffic trend ---------- */
+.ov-trend {
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  min-height: 236px;
+  padding-bottom: 10px !important;
+}
+.ov-trend .ui-card-head {
+  margin-bottom: 8px;
+}
+.ov-speeds {
+  display: flex;
+  gap: 40px;
+  margin-bottom: 6px;
+}
+.ov-speed {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ov-speed-top {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.ov-speed .ov-sub {
+  padding-left: 13px;
+}
+.ov-trend-chart {
+  flex: 1;
+  min-height: 120px;
+  display: flex;
+  align-items: flex-end;
+}
+
+/* ---------- Right column of small cards ---------- */
+.ov-stack {
+  display: grid;
+  grid-template-rows: repeat(3, 1fr);
+  gap: 15px;
+  min-width: 0;
+}
+.ov-mini {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding-bottom: 12px !important;
+}
+.ov-mini {
+  padding-top: 13px !important;
+}
+.ov-mini .ui-card-head {
+  margin-bottom: 6px;
+}
+.ov-mini-row {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+/* ---------- Traffic split ---------- */
+.ov-split-total {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 2px;
+}
+.ov-split-total .num {
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.ov-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 9.5px;
+  color: var(--text-2);
+}
+.ov-splitbar {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+  margin: 25px 0 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--track);
+}
+.ov-splitbar > div {
+  height: 100%;
+  border-radius: 999px;
+  min-width: 0;
+  transition: flex-grow 0.5s ease;
+}
+.ov-legend {
+  display: flex;
+  gap: 18px;
+}
+.ov-legend-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ov-legend-top {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+.ov-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ov-legend-label {
+  font-size: 9.5px;
+  color: var(--text-dim);
+  padding-left: 1px;
+}
+
+/* ---------- Split row: two halves ---------- */
+.ov-half-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px 16px;
+}
+
+/* ---------- Timeline ---------- */
+.ov-timeline .ui-card-head {
+  margin-bottom: 6px;
+}
+
+/* Rank cards keep the bottom flush like the screenshot */
+.ov-rank {
+  padding-bottom: 8px !important;
+}
+.ov-rank .ui-card-head {
+  margin-bottom: 4px;
+}
+.ov-policy .ui-card-head {
+  margin-bottom: 4px;
+}
+
+.ov-flag-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (max-width: 1100px) {
+  .ov-speeds {
+    gap: 24px;
+  }
+  .ov-sum-item {
+    padding: 0 14px;
+    gap: 8px;
+  }
+}

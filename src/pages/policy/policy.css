@@ -1,0 +1,218 @@
+.pl-root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-family: "Twemoji Country Flags", var(--font);
+}
+
+.pl-section-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-dim);
+  margin: 8px 2px -4px;
+}
+
+/* ---------- Group card ---------- */
+.pl-group {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  min-width: 0;
+}
+.pl-head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 12px 11px 14px;
+  border-radius: var(--radius-lg);
+  min-height: 56px;
+}
+.pl-head:hover {
+  background: var(--bg-card-hover);
+}
+.pl-group.open .pl-head {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.pl-gicon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.pl-gicon img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+.pl-gmain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.pl-gtitle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.pl-gname {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pl-gpath {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-dim);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.pl-gpath span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pl-gpath .pl-gpath-node {
+  color: var(--text-3);
+}
+.pl-gpath svg {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+.pl-gactions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.pl-chevron {
+  color: var(--text-dim);
+  transition: transform 0.18s ease;
+  flex-shrink: 0;
+}
+.pl-group.open .pl-chevron {
+  transform: rotate(180deg);
+}
+.pl-fixed {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--orange);
+  background: color-mix(in srgb, var(--orange) 14%, transparent);
+  border: 0;
+}
+.pl-fixed:hover {
+  background: color-mix(in srgb, var(--orange) 24%, transparent);
+}
+
+/* ---------- Node grid ---------- */
+.pl-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+  gap: 8px;
+  padding: 2px 12px 12px;
+  animation: slide-down 0.16s ease-out;
+}
+.pl-node {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
+  height: 58px;
+  padding: 9px 10px 9px 11px;
+  border-radius: 9px;
+  background: rgba(127, 127, 127, 0.08);
+  border: 1px solid transparent;
+  transition: background 0.12s, border-color 0.12s;
+  min-width: 0;
+}
+.pl-node.selectable:hover {
+  background: rgba(127, 127, 127, 0.14);
+}
+.pl-node.selected {
+  background: var(--accent);
+  color: #fff;
+}
+.pl-node.selected.selectable:hover {
+  background: var(--accent-hover);
+}
+.pl-node.dimmed {
+  opacity: 0.55;
+}
+.pl-nname {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pl-node.selected .pl-nname {
+  color: #fff;
+}
+.pl-nfoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+.pl-ntype {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.pl-node.selected .pl-ntype {
+  color: rgba(255, 255, 255, 0.78);
+}
+.pl-node.selected .ui-tag {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.55);
+}
+.pl-udp {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 0 4px;
+  border-radius: 4px;
+  border: 1px solid currentColor;
+  opacity: 0.7;
+  line-height: 12px;
+}
+
+/* ---------- Provider usage ---------- */
+.pl-usage {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 150px;
+}
+.pl-usage-text {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}

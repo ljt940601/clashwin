@@ -1,0 +1,276 @@
+/* Tray popup panel. The native window is transparent and sized to .tr-root. */
+
+.tr-root {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-start;
+  font-family: "Twemoji Country Flags", var(--font);
+  --tr-bg: rgba(30, 31, 33, 0.92);
+  --tr-border: rgba(255, 255, 255, 0.12);
+  --tr-sep: rgba(255, 255, 255, 0.1);
+  --tr-text: #f2f2f4;
+  --tr-dim: #9a9a9f;
+  --tr-hint: #6f6f74;
+}
+:root[data-theme="light"] .tr-root {
+  --tr-bg: rgba(236, 236, 238, 0.92);
+  --tr-border: rgba(0, 0, 0, 0.12);
+  --tr-sep: rgba(0, 0, 0, 0.1);
+  --tr-text: #1d1d1f;
+  --tr-dim: #6e6e73;
+  --tr-hint: #9a9a9f;
+}
+
+.tr-panel,
+.tr-flyout {
+  background: var(--tr-bg);
+  border: 1px solid var(--tr-border);
+  border-radius: 12px;
+  backdrop-filter: blur(30px) saturate(1.7);
+  -webkit-backdrop-filter: blur(30px) saturate(1.7);
+  color: var(--tr-text);
+}
+
+.tr-panel {
+  width: 320px;
+  padding: 5px 0;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.tr-sep {
+  height: 1px;
+  background: var(--tr-sep);
+  margin: 5px 14px;
+}
+
+/* ---------- rows ---------- */
+.tr-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 27px;
+  margin: 0 5px;
+  padding: 0 9px;
+  border-radius: 5px;
+  font-size: 13.5px;
+  white-space: nowrap;
+  color: var(--tr-text);
+  position: relative;
+}
+.tr-row.tall {
+  height: 30px;
+}
+.tr-row.hoverable:hover,
+.tr-row.open {
+  background: var(--accent);
+  color: #fff;
+}
+.tr-row.hoverable:hover .tr-dim,
+.tr-row.open .tr-dim,
+.tr-row.hoverable:hover .tr-hint,
+.tr-row.open .tr-hint,
+.tr-row.hoverable:hover .tr-chev,
+.tr-row.open .tr-chev {
+  color: rgba(255, 255, 255, 0.85);
+}
+.tr-row.disabled {
+  color: var(--tr-hint);
+}
+.tr-row-label {
+  flex-shrink: 0;
+}
+.tr-row-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+}
+.tr-row-right .ellipsis {
+  max-width: 150px;
+}
+.tr-dim {
+  color: var(--tr-dim);
+}
+.tr-hint {
+  color: var(--tr-hint);
+  font-size: 12.5px;
+  letter-spacing: 0.2px;
+}
+.tr-chev {
+  color: var(--tr-dim);
+  flex-shrink: 0;
+  margin-right: -3px;
+}
+.tr-group-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 15px;
+  line-height: 1;
+}
+.tr-group-icon img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+/* ---------- traffic + perf cards ---------- */
+.tr-wave {
+  margin: 4px 14px 2px;
+  height: 78px;
+  cursor: default;
+}
+.tr-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 0.95fr;
+  row-gap: 5px;
+  column-gap: 6px;
+  padding: 6px 14px 4px;
+}
+.tr-stat {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  min-width: 0;
+  color: var(--tr-text);
+}
+.tr-stat svg {
+  flex-shrink: 0;
+}
+
+/* ---------- subscription ---------- */
+.tr-sub {
+  padding: 5px 14px 4px;
+}
+.tr-sub-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.tr-sub-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tr-sub-days {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--tr-dim);
+  white-space: nowrap;
+}
+.tr-sub-foot {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--tr-dim);
+  margin-top: 5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- notice cards ---------- */
+.tr-notice {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 3px 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(127, 127, 127, 0.12);
+  font-size: 12.5px;
+}
+.tr-notice:hover {
+  background: var(--accent);
+  color: #fff;
+}
+.tr-notice:hover .tr-dim {
+  color: rgba(255, 255, 255, 0.85);
+}
+.tr-notice-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.tr-notice:hover .tr-notice-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+/* ---------- flyout ---------- */
+.tr-flyout {
+  position: absolute;
+  width: 270px;
+  padding: 5px 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 10;
+  animation: tr-fly-in 0.1s ease-out;
+}
+@keyframes tr-fly-in {
+  from {
+    opacity: 0;
+    transform: translateX(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.tr-flyout .tr-row {
+  height: 26px;
+  font-size: 13px;
+}
+.tr-check {
+  width: 13px;
+  display: inline-flex;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.tr-fly-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+.tr-row.hoverable:hover .ui-latency.none,
+.tr-row.hoverable:hover .ui-tag {
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+.tr-empty {
+  padding: 6px 14px;
+  font-size: 12.5px;
+  color: var(--tr-hint);
+}
+
+/* The tray window itself is transparent: only the panel paints. */
+:root:has(body.tray-body) {
+  background: transparent;
+}
+
+.tr-row.hoverable:hover .tr-group-icon svg,
+.tr-row.open .tr-group-icon svg {
+  stroke: #fff;
+}
+.tr-row.hoverable:hover .ui-toggle,
+.tr-row.open .ui-toggle {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35);
+}

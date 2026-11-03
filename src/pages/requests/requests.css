@@ -1,0 +1,361 @@
+.rq-root {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  font-family: "Twemoji Country Flags", var(--font);
+  padding: 2px 22px 18px;
+}
+.rq-title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+}
+.rq-title-count {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Table ---------- */
+.rq-table-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  position: relative;
+}
+.rq-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+  outline: none;
+}
+.rq-grid {
+  display: grid;
+  grid-template-columns:
+    minmax(120px, 1.05fr) /* process */
+    minmax(170px, 2.1fr) /* host */
+    106px /* type */
+    minmax(110px, 1.15fr) /* rule */
+    minmax(140px, 1.5fr) /* chains */
+    78px 78px /* speeds */
+    76px 76px /* totals */
+    66px; /* duration */
+  column-gap: 0;
+  align-items: center;
+  min-width: 1020px;
+}
+.rq-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: 30px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--separator);
+}
+.rq-th {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  position: relative;
+}
+.rq-th + .rq-th::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: var(--separator);
+}
+.rq-th:hover {
+  color: var(--text-1);
+}
+.rq-th.sorted {
+  color: var(--text-1);
+}
+.rq-th.right {
+  justify-content: flex-end;
+}
+.rq-th svg {
+  flex-shrink: 0;
+  color: var(--text-dim);
+}
+
+.rq-body {
+  position: relative;
+}
+.rq-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 28px;
+}
+.rq-row:nth-child(even) {
+  background: rgba(127, 127, 127, 0.035);
+}
+.rq-row:hover {
+  background: var(--bg-row-hover);
+}
+.rq-row.selected {
+  background: var(--accent);
+  color: #fff;
+}
+.rq-row.selected .rq-td,
+.rq-row.selected .rq-dim,
+.rq-row.selected .rq-chain-sep {
+  color: rgba(255, 255, 255, 0.92);
+}
+.rq-row.selected .rq-dim {
+  color: rgba(255, 255, 255, 0.7);
+}
+.rq-row.closed .rq-td {
+  opacity: 0.85;
+}
+.rq-td {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  font-size: 12px;
+  color: var(--text-1);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.rq-td > .txt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.rq-td.right {
+  justify-content: flex-end;
+  font-variant-numeric: tabular-nums;
+}
+.rq-td.num {
+  font-variant-numeric: tabular-nums;
+}
+.rq-dim {
+  color: var(--text-dim);
+}
+.rq-zero {
+  color: var(--text-faint);
+}
+.rq-dl {
+  color: var(--blue);
+}
+.rq-ul {
+  color: var(--red);
+}
+.rq-row.selected .rq-dl,
+.rq-row.selected .rq-ul {
+  color: #fff;
+}
+
+.rq-picon {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  object-fit: contain;
+}
+.rq-picon.fallback {
+  background: var(--bg-control);
+  color: var(--text-3);
+}
+.rq-row.selected .rq-picon.fallback {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+.rq-chain {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+}
+.rq-chain-seg {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
+}
+.rq-chain-seg:last-child {
+  flex-shrink: 0;
+  max-width: 100%;
+}
+.rq-chain-sep {
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.rq-net {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--bg-control);
+  color: var(--text-2);
+}
+.rq-net.udp {
+  background: rgba(190, 68, 229, 0.18);
+  color: var(--purple);
+}
+.rq-row.selected .rq-net {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+.rq-empty {
+  position: absolute;
+  inset: 30px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/* ---------- Detail panel ---------- */
+.rq-detail {
+  flex-shrink: 0;
+  height: 0;
+  overflow: hidden;
+  background: var(--bg-card);
+  border-top: 1px solid var(--separator);
+  transition: height 0.24s cubic-bezier(0.3, 0.7, 0.4, 1);
+  position: relative;
+}
+.rq-detail.open {
+  height: 248px;
+}
+.rq-detail-inner {
+  height: 248px;
+  display: flex;
+  flex-direction: column;
+}
+.rq-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px 4px 16px;
+}
+.rq-detail-head .ttl {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rq-detail-grid {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: minmax(170px, 1fr) minmax(260px, 1.6fr) minmax(150px, 0.9fr) minmax(170px, 1fr);
+  gap: 0 22px;
+  padding: 6px 16px 14px;
+}
+.rq-sec-title {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-3);
+  margin: 4px 0 7px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.rq-kv {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 5px 12px;
+  font-size: 11.5px;
+  align-items: baseline;
+}
+.rq-kv .k {
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.rq-kv .v {
+  color: var(--text-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+  font-variant-numeric: tabular-nums;
+}
+.rq-kv .v.mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.rq-proc-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+.rq-proc-card .rq-picon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+.rq-proc-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.rq-path {
+  font-size: 11px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* ---------- Rule dialog ---------- */
+.rq-rule-form {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 10px 12px;
+  align-items: center;
+}
+.rq-rule-form label {
+  font-size: 12px;
+  color: var(--text-2);
+  text-align: right;
+}
+.rq-rule-preview {
+  grid-column: 1 / -1;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 6px 9px;
+  overflow-wrap: anywhere;
+}

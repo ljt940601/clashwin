@@ -1,0 +1,171 @@
+/* Design tokens. Dark values were sampled from ClashMac reference screenshots;
+   light values follow the macOS light appearance. */
+
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg-window: #1e1f21;
+  --bg-sidebar: #25262a;
+  --bg-card: #242527;
+  --bg-card-hover: #2a2b2e;
+  --bg-elevated: #2c2d31;
+  --bg-menu: rgba(40, 41, 45, 0.96);
+  --bg-control: #38393b;
+  --bg-control-hover: #434447;
+  --bg-segment: #393a3e;
+  --bg-segment-active: #6f6f71;
+  --bg-input: #2b2c2f;
+  --bg-row-hover: rgba(255, 255, 255, 0.04);
+  --bg-row-selected: rgba(51, 120, 247, 0.22);
+  --bg-group: #292a2d; /* grouped form box */
+  --track: #2e2f32;
+  --overlay: rgba(0, 0, 0, 0.45);
+
+  /* Lines */
+  --border: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.12);
+  --separator: rgba(255, 255, 255, 0.07);
+
+  /* Text */
+  --text: #ffffff;
+  --text-1: #ececee;
+  --text-2: #cbcbcd;
+  --text-3: #b2b3b5;
+  --text-dim: #76777b;
+  --text-faint: #4a4b4e;
+  --text-on-accent: #ffffff;
+
+  /* Accent + semantic */
+  --accent: #3378f7;
+  --accent-hover: #4386ff;
+  --accent-soft: rgba(51, 120, 247, 0.18);
+  --blue: #389aff;
+  --red: #ff5b51;
+  --green: #32d74b;
+  --green-dim: #3f823d;
+  --yellow: #ffd60a;
+  --orange: #ff9f0a;
+  --amber: #feb240;
+  --teal: #66d9e8;
+  --cyan: #64d9ff;
+  --purple: #be44e5;
+  --magenta: #e03eff;
+  --indigo: #6b7cfe;
+  --pink: #ca4058;
+
+  /* Chart colors */
+  --chart-down: #389aff;
+  --chart-up: #ff5b51;
+  --chart-bar: #717df7;
+  --bar-rule: #da4759;
+  --bar-domain: #54bfc7;
+  --bar-node: #df8c40;
+  --bar-policy: #707ef9;
+  --bar-process: #4cc38a;
+  --bar-country: #c779e8;
+  --split-direct: #64d9ff;
+  --split-proxy: #6b7cfe;
+  --split-reject: #ff4e48;
+
+  /* Latency */
+  --lat-good: #30b158;
+  --lat-mid: #d99a1e;
+  --lat-bad: #e0573a;
+
+  /* Map */
+  --map-ocean: #1e1f21;
+  --map-land: #2a2b2e;
+  --map-border: #34353a;
+  --map-route: #7b83ff;
+  --map-target: #c66bff;
+
+  /* Shadows */
+  --shadow-menu: 0 10px 30px rgba(0, 0, 0, 0.45), 0 0 0 0.5px rgba(255, 255, 255, 0.1);
+  --shadow-modal: 0 24px 60px rgba(0, 0, 0, 0.55), 0 0 0 0.5px rgba(255, 255, 255, 0.1);
+  --shadow-card: 0 0 0 0 transparent;
+
+  /* Shape + type */
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --font: "Twemoji Country Flags", "Inter Variable", "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", system-ui, sans-serif;
+  --font-mono: "Twemoji Country Flags", "Cascadia Mono", "JetBrains Mono", Consolas, "Microsoft YaHei UI", monospace;
+
+  --sidebar-width: 168px;
+  --toolbar-height: 46px;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg-window: #f5f5f7;
+  --bg-sidebar: #e9e9ec;
+  --bg-card: #ffffff;
+  --bg-card-hover: #fafafa;
+  --bg-elevated: #ffffff;
+  --bg-menu: rgba(250, 250, 252, 0.97);
+  --bg-control: #e4e4e8;
+  --bg-control-hover: #d9d9de;
+  --bg-segment: #e2e2e6;
+  --bg-segment-active: #ffffff;
+  --bg-input: #ffffff;
+  --bg-row-hover: rgba(0, 0, 0, 0.035);
+  --bg-row-selected: rgba(51, 120, 247, 0.14);
+  --bg-group: #ffffff;
+  --track: #e8e8ec;
+  --overlay: rgba(0, 0, 0, 0.2);
+
+  --border: rgba(0, 0, 0, 0.07);
+  --border-strong: rgba(0, 0, 0, 0.14);
+  --separator: rgba(0, 0, 0, 0.08);
+
+  --text: #1d1d1f;
+  --text-1: #1d1d1f;
+  --text-2: #3a3a3c;
+  --text-3: #55555a;
+  --text-dim: #8a8a8e;
+  --text-faint: #b8b8bd;
+
+  --accent: #2f74f2;
+  --accent-hover: #2468e6;
+  --accent-soft: rgba(47, 116, 242, 0.12);
+  --blue: #1f86f5;
+  --red: #f0473d;
+  --green: #28b446;
+  --green-dim: #4b9a49;
+  --yellow: #e0b400;
+  --orange: #f08a00;
+  --amber: #f2a024;
+  --teal: #20a6b5;
+  --cyan: #21a8d8;
+  --purple: #a537cf;
+  --magenta: #c32ee0;
+  --indigo: #5866f2;
+  --pink: #c4364f;
+
+  --chart-down: #1f86f5;
+  --chart-up: #f0473d;
+  --chart-bar: #6672f2;
+  --bar-rule: #d43f52;
+  --bar-domain: #3aaab3;
+  --bar-node: #e08530;
+  --bar-policy: #6672f2;
+  --bar-process: #2fae6f;
+  --bar-country: #ad5fd6;
+  --split-direct: #2fb5e6;
+  --split-proxy: #5866f2;
+  --split-reject: #f0473d;
+
+  --map-ocean: #f2f2f5;
+  --map-land: #e0e0e6;
+  --map-border: #d0d0d8;
+  --map-route: #5865f2;
+  --map-target: #a54de6;
+
+  --shadow-menu: 0 10px 30px rgba(0, 0, 0, 0.16), 0 0 0 0.5px rgba(0, 0, 0, 0.12);
+  --shadow-modal: 0 24px 60px rgba(0, 0, 0, 0.22), 0 0 0 0.5px rgba(0, 0, 0, 0.12);
+  --shadow-card: 0 0 0 0.5px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+}
