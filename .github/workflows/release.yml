@@ -1,0 +1,46 @@
+# Builds the Windows installer and publishes it to GitHub Releases.
+# Run it from the Actions tab ("Run workflow"), or push a tag like v0.1.1.
+# The release is tagged v<version> from src-tauri/tauri.conf.json; running it again for the
+# same version uploads to that release again.
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: ClashWin v__VERSION__
+          releaseBody: 下载下面的 ClashWin_*_x64-setup.exe 安装即可（Windows 10/11 x64）。
+          releaseDraft: false
+          prerelease: false

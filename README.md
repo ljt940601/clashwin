@@ -42,6 +42,8 @@ npx tauri build      # 打包 NSIS 安装程序
 
 数据目录：`%APPDATA%\ClashWin`（设置、配置文件、内核、历史数据库、日志）。
 
+发布：在 GitHub 的 Actions 页面手动运行 **Release** 工作流（或推送 `v*` 标签），会在 Windows 上构建 NSIS 安装包并发布到 Releases。
+
 ## 与 ClashMac 的差异
 
 - **增强模式（TUN）**：Windows 创建虚拟网卡需要管理员权限。可以在「设置 → 权限」安装辅助任务（一次授权，之后以管理员身份自动启动），或临时以管理员身份重启。
