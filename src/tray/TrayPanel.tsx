@@ -43,6 +43,23 @@ const SPECIAL: Record<string, string> = { DIRECT: "direct", REJECT: "reject", "R
 
 type FlyId = "kernel" | "mode" | "profile" | `group:${string}`;
 
+/* ---------- UI scale ---------- */
+// The panel is designed for roomy screens. On a smaller logical screen (resolution divided
+// by the Windows scaling, e.g. 1080p at 100%) it is shrunk, and shrunk further when it would
+// not fit the work area.
+const FULL_SIZE_SCREEN_H = 1240; // logical work-area height that gets the full size
+const MIN_AUTO_ZOOM = 0.85;
+const MIN_FIT_ZOOM = 0.7;
+const SCREEN_MARGIN = 24;
+
+/** CSS zoom for the panel. `setting`: 0 = auto, otherwise a percentage. */
+function trayZoom(setting: number, naturalHeight: number, screenHeight: number): number {
+  if (!screenHeight) return setting ? setting / 100 : 1;
+  const base = setting ? setting / 100 : Math.min(1, Math.max(MIN_AUTO_ZOOM, screenHeight / FULL_SIZE_SCREEN_H));
+  const fit = naturalHeight > 0 ? (screenHeight - SCREEN_MARGIN) / naturalHeight : base;
+  return Math.round(Math.max(MIN_FIT_ZOOM, Math.min(base, fit)) * 100) / 100;
+}
+
 /* ---------- helpers ---------- */
 
 function withFlag(name: string): string {
@@ -177,8 +194,12 @@ export default function TrayPanel() {
   const [ruleOpen, setRuleOpen] = React.useState(false);
   const [fly, setFly] = React.useState<{ id: FlyId; top: number } | null>(null);
   const [panelH, setPanelH] = React.useState(600);
+  const [zoom, setZoom] = React.useState(1);
+  const zoomRef = React.useRef(zoom);
+  zoomRef.current = zoom;
 
   const rootRef = React.useRef<HTMLDivElement>(null);
+  const measureRef = React.useRef<() => void>();
   const panelRef = React.useRef<HTMLDivElement>(null);
   const openTimer = React.useRef<number>();
   const closeTimer = React.useRef<number>();
@@ -240,6 +261,7 @@ export default function TrayPanel() {
       listen("tray://shown", () => {
         setFly(null);
         refresh();
+        measureRef.current?.(); // may have opened on another screen
       }),
       listen("tray://hidden", () => {
         setFly(null);
@@ -252,6 +274,8 @@ export default function TrayPanel() {
   /* ----- native window sizing ----- */
   // The window always reserves room for a flyout on the left so opening one never
   // resizes or moves it; the region below keeps that room transparent to clicks.
+  // Layout values (offset*, style top) are unzoomed; getBoundingClientRect() is in window
+  // px with the zoom applied, which is what the backend needs.
   const reserve = FLY_W + GAP;
 
   /** Report the visible shapes (panel + open flyout) so only they are clickable. */
@@ -264,9 +288,14 @@ export default function TrayPanel() {
       backend.setTrayPanelRegion([]).catch(() => {}); // dialog overlays the whole window
       return;
     }
-    const rects = [{ x: panel.offsetLeft, y: panel.offsetTop, width: panel.offsetWidth, height: panel.offsetHeight, radius: 12 }];
+    const radius = 12 * zoomRef.current;
+    const shape = (el: HTMLElement) => {
+      const r = el.getBoundingClientRect();
+      return { x: r.left, y: r.top, width: r.width, height: r.height, radius };
+    };
+    const rects = [shape(panel)];
     const f = root.querySelector<HTMLElement>(".tr-flyout");
-    if (f) rects.push({ x: f.offsetLeft, y: f.offsetTop, width: f.offsetWidth, height: f.offsetHeight, radius: 12 });
+    if (f) rects.push(shape(f));
     backend.setTrayPanelRegion(rects).catch(() => {});
   }, [ruleOpen]);
 
@@ -289,15 +318,22 @@ export default function TrayPanel() {
     if (!root || !panel) return;
     let timer: number | undefined;
     const report = () => {
-      const h = Math.ceil(panel.getBoundingClientRect().height);
-      setPanelH(h);
+      const natural = panel.offsetHeight; // unzoomed
+      setPanelH(natural);
+      const z = trayZoom(useApp.getState().settings?.trayScale ?? 0, natural, window.screen?.availHeight ?? 0);
+      if (z !== zoomRef.current) {
+        setZoom(z); // re-runs this effect, which reports the new size
+        return;
+      }
       window.clearTimeout(timer);
       timer = window.setTimeout(() => {
         const w = Math.ceil(root.getBoundingClientRect().width);
+        const h = Math.ceil(panel.getBoundingClientRect().height);
         backend.setTrayPanelSize(isTauri ? w : PANEL_W + 2, h).catch(() => {});
         reportRegion();
       }, 30);
     };
+    measureRef.current = report;
     const ro = new ResizeObserver(report);
     ro.observe(panel);
     ro.observe(root);
@@ -306,7 +342,7 @@ export default function TrayPanel() {
       ro.disconnect();
       window.clearTimeout(timer);
     };
-  }, [reserve, reportRegion]);
+  }, [reserve, reportRegion, zoom, settings.trayScale]);
 
   /* ----- flyout hover logic ----- */
   const cancelTimers = () => {
@@ -558,7 +594,7 @@ export default function TrayPanel() {
   const statIcon = 15;
 
   return (
-    <div ref={rootRef} className="tr-root" style={{ paddingLeft: reserve }}>
+    <div ref={rootRef} className="tr-root" style={{ paddingLeft: reserve, zoom: zoom === 1 ? undefined : zoom }}>
       {fly && flyContent && (
         <Flyout top={fly.top} panelHeight={panelH} onEnter={cancelTimers}>
           {flyContent}

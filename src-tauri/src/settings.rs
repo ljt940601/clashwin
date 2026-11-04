@@ -340,6 +340,8 @@ pub struct AppSettings {
     pub language: String,
     pub theme: String,
     pub tray_mode: String,
+    /// Tray menu size in percent; 0 = fit the screen automatically.
+    pub tray_scale: u32,
     pub launch_at_login: bool,
     pub silent_start: bool,
     pub menu_cards: MenuCards,
@@ -366,6 +368,7 @@ impl Default for AppSettings {
             language: s("system"),
             theme: s("system"),
             tray_mode: s("icon_speed"),
+            tray_scale: 0,
             launch_at_login: false,
             silent_start: false,
             menu_cards: MenuCards::default(),
@@ -479,6 +482,7 @@ mod tests {
     fn defaults_roundtrip_camel_case() {
         let v = serde_json::to_value(AppSettings::default()).unwrap();
         assert_eq!(v["trayMode"], "icon_speed");
+        assert_eq!(v["trayScale"], 0);
         assert_eq!(v["engine"]["network"]["mixedPort"], 7890);
         assert_eq!(v["engine"]["sniffer"]["http"]["override"], true);
         assert_eq!(v["engine"]["dns"]["fallbackFilter"]["geoipCode"], "CN");

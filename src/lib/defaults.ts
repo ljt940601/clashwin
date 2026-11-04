@@ -97,6 +97,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   language: "system",
   theme: "system",
   trayMode: "icon_speed",
+  trayScale: 0,
   launchAtLogin: false,
   silentStart: false,
   menuCards: { browserRule: false, trafficWave: true, perfGrid: true, subscription: true, copyShell: true },

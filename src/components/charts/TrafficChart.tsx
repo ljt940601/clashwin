@@ -10,7 +10,8 @@ export function useWidth<T extends HTMLElement>(): [React.RefObject<T>, number] 
     if (!ref.current) return;
     const ro = new ResizeObserver((e) => setW(e[0].contentRect.width));
     ro.observe(ref.current);
-    setW(ref.current.getBoundingClientRect().width);
+    // layout px like ResizeObserver (getBoundingClientRect would include a CSS zoom)
+    setW(ref.current.offsetWidth);
     return () => ro.disconnect();
   }, []);
   return [ref, w];

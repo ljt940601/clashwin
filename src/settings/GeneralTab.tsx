@@ -73,6 +73,17 @@ export default function GeneralTab() {
             ]}
           />
         </FormRow>
+        <FormRow label={t("settings.trayScale")} desc={t("settings.trayScaleDesc")}>
+          <Select<number>
+            width={SELECT_W}
+            value={s.trayScale}
+            onChange={(v) => save({ trayScale: v })}
+            options={[
+              { value: 0, label: t("settings.trayScaleAuto") },
+              ...[80, 90, 100, 110, 125].map((v) => ({ value: v, label: `${v}%` })),
+            ]}
+          />
+        </FormRow>
         <FormRow label={t("settings.language")}>
           <Select<AppSettings["language"]>
             width={SELECT_W}

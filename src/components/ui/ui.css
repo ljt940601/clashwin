@@ -370,6 +370,8 @@
   font-size: 12px;
 }
 textarea.ui-input {
+  /* block: an inline textarea leaves a descender gap below it */
+  display: block;
   height: auto;
   padding: 7px 9px;
   resize: vertical;
@@ -537,11 +539,22 @@ textarea.ui-input {
   overflow: auto;
   flex: 1;
 }
+/* Footer buttons keep the same 20px from the content above, the bottom edge and the
+   right edge, so they sit evenly in the corner. */
 .ui-modal-foot {
-  padding: 10px 20px 16px;
+  padding: 8px 20px 20px;
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 8px;
+}
+.ui-modal-head + .ui-modal-foot,
+.ui-modal-desc + .ui-modal-foot {
+  padding-top: 20px;
+}
+/* Trailing margins inside the body would widen the gap above the footer. */
+.ui-modal-body > :last-child {
+  margin-bottom: 0;
 }
 
 /* ---------- Form (macOS grouped settings) ---------- */

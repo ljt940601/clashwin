@@ -1,4 +1,4 @@
-//! System tray icon: click toggles the popup panel, double-click opens the dashboard,
+//! System tray icon: left-click opens the dashboard, right-click toggles the popup menu,
 //! tooltip shows live speeds, a dimmed "sleep" icon when not proxying.
 
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -42,12 +42,13 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         .on_tray_icon_event(|tray, event| {
             let app = tray.app_handle();
             match event {
-                TrayIconEvent::Click { button: MouseButton::Left | MouseButton::Right, button_state: MouseButtonState::Up, position, .. } => {
-                    windows::toggle_tray_panel(app, position);
-                }
-                TrayIconEvent::DoubleClick { button: MouseButton::Left, .. } => {
+                // Like other Windows tray apps: left-click opens the main window, right-click the menu.
+                TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } => {
                     windows::hide_tray_panel(app);
                     windows::show_dashboard(app, None);
+                }
+                TrayIconEvent::Click { button: MouseButton::Right, button_state: MouseButtonState::Up, position, .. } => {
+                    windows::toggle_tray_panel(app, position);
                 }
                 _ => {}
             }

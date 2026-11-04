@@ -369,6 +369,8 @@ export interface AppSettings {
   language: "system" | "zh" | "en";
   theme: "system" | "light" | "dark";
   trayMode: "icon_speed" | "icon" | "speed";
+  /** Tray menu size in percent; 0 = fit the screen automatically */
+  trayScale: number;
   launchAtLogin: boolean;
   silentStart: boolean;
   menuCards: {
