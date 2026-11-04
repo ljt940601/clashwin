@@ -1,7 +1,8 @@
 # Builds the Windows installer and publishes it to GitHub Releases.
 # Run it from the Actions tab ("Run workflow"), or push a tag like v0.1.1.
 # The release is tagged v<version> from src-tauri/tauri.conf.json; running it again for the
-# same version uploads to that release again.
+# same version replaces that release's installer.
+# Uses only GitHub's own actions and the tools preinstalled on windows-latest (Rust, gh).
 name: Release
 
 on:
@@ -27,20 +28,36 @@ jobs:
           node-version: 22
           cache: npm
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: swatinem/rust-cache@v2
+      - name: Cache Rust build
+        uses: actions/cache@v4
         with:
-          workspaces: src-tauri -> target
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Rust toolchain
+        run: rustup update stable --no-self-update && rustup default stable
 
       - run: npm ci
 
-      - uses: tauri-apps/tauri-action@v0
+      - name: Build installer
+        run: npx tauri build --bundles nsis
+
+      - name: Publish release
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: v__VERSION__
-          releaseName: ClashWin v__VERSION__
-          releaseBody: 下载下面的 ClashWin_*_x64-setup.exe 安装即可（Windows 10/11 x64）。
-          releaseDraft: false
-          prerelease: false
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          tag="v$version"
+          file=$(ls src-tauri/target/release/bundle/nsis/*-setup.exe)
+          echo "Publishing $file as $tag"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "$file" --clobber
+          else
+            gh release create "$tag" "$file" --target "$GITHUB_SHA" --title "ClashWin $tag" \
+              --notes "下载下面的 ClashWin_${version}_x64-setup.exe 安装即可（Windows 10/11 x64）。"
+          fi
