@@ -499,8 +499,9 @@ impl AppState {
     /// Relaunch elevated (via helper task when installed, else UAC prompt), then exit.
     pub fn relaunch_elevated(&self, app: &AppHandle) -> Res<()> {
         let marker = self.paths.relaunch_marker();
-        admin::write_relaunch_marker(&marker);
-        let r = if admin::helper_installed() {
+        // The new instance reopens the dashboard as it is now (or keeps it hidden).
+        admin::write_relaunch_marker(&marker, &crate::windows::dashboard_handover(app));
+        let r = if admin::helper_usable(&self.paths.data) {
             admin::helper_run()
         } else {
             let exe = std::env::current_exe()?;

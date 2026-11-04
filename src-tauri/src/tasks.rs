@@ -47,7 +47,7 @@ async fn startup(app: AppHandle) {
     }
     // TUN only takes effect with admin rights. Don't show it as on when it can't be.
     if !st.elevated && st.settings.read().tun_mode {
-        if crate::admin::helper_installed() && st.relaunch_elevated(&app).is_ok() {
+        if crate::admin::helper_usable(&st.paths.data) && st.relaunch_elevated(&app).is_ok() {
             return; // the elevated instance takes over
         }
         let _ = st.update_settings(&app, |s| s.tun_mode = false);

@@ -22,7 +22,6 @@ pub mod winutil;
 use std::sync::Arc;
 use tauri_plugin_autostart::MacosLauncher;
 
-use crate::settings::AppSettings;
 use crate::state::AppState;
 use crate::util::Paths;
 
@@ -36,23 +35,28 @@ pub fn run() {
     log::info!("ClashWin {} starting (elevated: {})", env!("CARGO_PKG_VERSION"), admin::is_elevated());
 
     // A previous instance may be relaunching us (elevation); let it exit first.
-    admin::wait_for_previous_instance(&paths.relaunch_marker());
+    let relaunch = admin::wait_for_previous_instance(&paths.relaunch_marker());
 
-    // Enhanced Mode needs elevation; with the helper installed we can get it without UAC.
-    if !admin::is_elevated() && !has("--elevated") && !has("--no-elevate") {
-        let s = AppSettings::load(&paths.settings);
-        if s.tun_mode && admin::helper_installed() {
-            admin::write_relaunch_marker(&paths.relaunch_marker());
-            if admin::helper_run().is_ok() {
-                log::info!("relaunching elevated via helper task");
-                return;
-            }
-            let _ = std::fs::remove_file(paths.relaunch_marker());
+    // With the helper installed, always run elevated (that's what the helper is for), so
+    // switching Enhanced Mode only reloads the core instead of restarting the app. This
+    // happens before any window exists, so it isn't visible.
+    if !admin::is_elevated() && !has("--elevated") && !has("--no-elevate") && admin::helper_usable(&paths.data) {
+        let mut handover = relaunch.clone().unwrap_or_default();
+        handover.autostart |= has("--autostart");
+        admin::write_relaunch_marker(&paths.relaunch_marker(), &handover);
+        if admin::helper_run().is_ok() {
+            log::info!("relaunching elevated via helper task");
+            return;
         }
+        let _ = std::fs::remove_file(paths.relaunch_marker());
     }
 
     let state = Arc::new(AppState::new(paths));
-    let silent = state.settings.read().silent_start || has("--autostart");
+    let autostart = has("--autostart") || relaunch.as_ref().is_some_and(|r| r.autostart);
+    let silent = match relaunch.as_ref().and_then(|r| r.show) {
+        Some(show) => !show,
+        None => state.settings.read().silent_start || autostart,
+    };
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -67,7 +71,7 @@ pub fn run() {
         .manage(state.clone())
         .setup(move |app| {
             let handle = app.handle().clone();
-            windows::create_main(&handle, !silent)?;
+            windows::create_main_restored(&handle, !silent, relaunch.as_ref())?;
             windows::create_tray_panel(&handle)?;
             tray::create(&handle)?;
             tasks::spawn_all(&handle);

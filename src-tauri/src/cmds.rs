@@ -346,7 +346,7 @@ pub async fn set_system_proxy(app: AppHandle, enable: bool) -> Res<()> {
 pub async fn set_tun_mode(app: AppHandle, enable: bool) -> Res<()> {
     let st = state(&app);
     if enable && !st.elevated {
-        if admin::helper_installed() {
+        if admin::helper_usable(&st.paths.data) {
             st.update_settings(&app, |s| s.tun_mode = true)?;
             st.relaunch_elevated(&app)?;
             return Ok(());
@@ -587,7 +587,9 @@ pub struct HelperStatus {
 }
 
 fn helper_status_now(st: &AppState) -> HelperStatus {
-    let installed = admin::helper_installed();
+    // A task registered by another copy of ClashWin counts as not installed for this one,
+    // so installing again points it here.
+    let installed = admin::helper_usable(&st.paths.data);
     HelperStatus {
         installed,
         running: installed && st.elevated,
@@ -613,7 +615,8 @@ pub async fn helper_install(app: AppHandle) -> Res<HelperStatus> {
 #[tauri::command]
 pub async fn helper_uninstall(app: AppHandle) -> Res<HelperStatus> {
     let st = state(&app);
-    tokio::task::spawn_blocking(admin::helper_uninstall).await.map_err(|e| AppError::io(e.to_string()))??;
+    let data = st.paths.data.clone();
+    tokio::task::spawn_blocking(move || admin::helper_uninstall(&data)).await.map_err(|e| AppError::io(e.to_string()))??;
     Ok(helper_status_now(&st))
 }
 

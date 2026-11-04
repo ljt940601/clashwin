@@ -4,6 +4,7 @@ use serde::Serialize;
 use std::time::Instant;
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
 
+use crate::admin;
 use crate::state::state;
 
 #[derive(Clone, Serialize)]
@@ -12,10 +13,23 @@ struct NavigatePayload {
 }
 
 pub fn create_main(app: &AppHandle, visible: bool) -> tauri::Result<WebviewWindow> {
+    create_main_restored(app, visible, None)
+}
+
+/// A dashboard route we can put in the window URL ("/rules", "/engine/dns", ...).
+fn valid_page(p: &str) -> bool {
+    p.starts_with('/') && p.len() < 64 && p.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '_'))
+}
+
+/// Create the dashboard; after an elevation relaunch, reopen it the way it was (page, place, size).
+pub fn create_main_restored(app: &AppHandle, visible: bool, restore: Option<&admin::Relaunch>) -> tauri::Result<WebviewWindow> {
     if let Some(w) = app.get_webview_window("main") {
         return Ok(w);
     }
-    let w = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html#/overview".into()))
+    let page = restore.and_then(|r| r.page.as_deref()).filter(|p| valid_page(p)).unwrap_or("/overview");
+    let bounds = restore.and_then(|r| r.bounds);
+    let maximized = restore.is_some_and(|r| r.maximized);
+    let w = WebviewWindowBuilder::new(app, "main", WebviewUrl::App(format!("index.html#{page}").into()))
         .title("ClashWin")
         .inner_size(1240.0, 800.0)
         .min_inner_size(960.0, 620.0)
@@ -23,8 +37,18 @@ pub fn create_main(app: &AppHandle, visible: bool) -> tauri::Result<WebviewWindo
         .shadow(true)
         .resizable(true)
         .center()
-        .visible(visible)
+        .visible(visible && bounds.is_none() && !maximized)
         .build()?;
+    if let Some((x, y, width, height)) = bounds {
+        let _ = w.set_position(PhysicalPosition::new(x, y));
+        let _ = w.set_size(PhysicalSize::new(width, height));
+    }
+    if maximized {
+        let _ = w.maximize();
+    }
+    if visible && (bounds.is_some() || maximized) {
+        let _ = w.show();
+    }
     let handle = w.clone();
     w.on_window_event(move |e| {
         if let WindowEvent::CloseRequested { api, .. } = e {
@@ -33,6 +57,21 @@ pub fn create_main(app: &AppHandle, visible: bool) -> tauri::Result<WebviewWindo
         }
     });
     Ok(w)
+}
+
+/// The dashboard's state, to hand to the instance that replaces us when relaunching elevated.
+pub fn dashboard_handover(app: &AppHandle) -> admin::Relaunch {
+    let Some(w) = app.get_webview_window("main") else {
+        return admin::Relaunch { show: Some(false), ..Default::default() };
+    };
+    let maximized = w.is_maximized().unwrap_or(false);
+    let minimized = w.is_minimized().unwrap_or(false);
+    let bounds = match (maximized || minimized, w.outer_position(), w.inner_size()) {
+        (false, Ok(p), Ok(s)) => Some((p.x, p.y, s.width, s.height)),
+        _ => None,
+    };
+    let page = w.url().ok().and_then(|u| u.fragment().map(str::to_string)).filter(|p| valid_page(p));
+    admin::Relaunch { autostart: false, show: Some(w.is_visible().unwrap_or(false)), page, bounds, maximized }
 }
 
 pub fn show_dashboard(app: &AppHandle, page: Option<String>) {

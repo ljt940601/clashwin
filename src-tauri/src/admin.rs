@@ -3,6 +3,7 @@
 //! elevated without a UAC prompt, so Enhanced Mode/TUN works after one authorization).
 
 use crate::util::{hidden_command, AppError, Res};
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 pub const HELPER_TASK: &str = "ClashWin Elevated";
@@ -119,6 +120,36 @@ pub fn helper_installed() -> bool {
         .unwrap_or(false)
 }
 
+/// Which executable the helper task starts (kept next to the settings; reading it back from
+/// schtasks would mangle non-ASCII paths).
+#[derive(Serialize, Deserialize)]
+struct HelperRecord {
+    exe: String,
+}
+
+fn helper_record_path(data_dir: &Path) -> std::path::PathBuf {
+    data_dir.join("helper.json")
+}
+
+fn same_exe(a: &Path, b: &Path) -> bool {
+    let norm = |p: &Path| p.to_string_lossy().trim_start_matches(r"\\?\").replace('/', "\\").to_lowercase();
+    norm(a) == norm(b)
+}
+
+/// Is the helper installed, and does it start this executable? A task registered by another
+/// copy (a dev build, an older install location) would launch that copy instead.
+pub fn helper_usable(data_dir: &Path) -> bool {
+    if !helper_installed() {
+        return false;
+    }
+    let record = std::fs::read(helper_record_path(data_dir)).ok().and_then(|b| serde_json::from_slice::<HelperRecord>(&b).ok());
+    match (record, std::env::current_exe()) {
+        (Some(r), Ok(exe)) => same_exe(&exe, Path::new(&r.exe)),
+        (Some(_), Err(_)) => false,
+        (None, _) => true, // installed before the record existed: assume it's ours
+    }
+}
+
 fn xml_escape(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
@@ -193,15 +224,18 @@ pub fn helper_install(data_dir: &Path) -> Res<()> {
     if code != 0 || !helper_installed() {
         return Err(AppError::io(format!("Failed to register the helper task (exit {code})")));
     }
+    let record = HelperRecord { exe: exe.to_string_lossy().into_owned() };
+    let _ = std::fs::write(helper_record_path(data_dir), serde_json::to_vec(&record).unwrap_or_default());
     Ok(())
 }
 
-pub fn helper_uninstall() -> Res<()> {
+pub fn helper_uninstall(data_dir: &Path) -> Res<()> {
     let params = format!("/Delete /TN {} /F", quote_arg(HELPER_TASK));
     let code = run_elevated(Path::new("schtasks.exe"), &params, true, true)?;
     if code != 0 && helper_installed() {
         return Err(AppError::io(format!("Failed to remove the helper task (exit {code})")));
     }
+    let _ = std::fs::remove_file(helper_record_path(data_dir));
     Ok(())
 }
 
@@ -219,24 +253,64 @@ pub fn helper_run() -> Res<()> {
 
 /* ---------------- Relaunch coordination ---------------- */
 
-/// Before relaunching, record our pid so the new instance waits for us to exit
-/// (otherwise the single-instance guard would hand off to the dying process).
-pub fn write_relaunch_marker(marker: &Path) {
-    let _ = std::fs::write(marker, std::process::id().to_string());
+/// What a relaunching instance hands to the new one, so the restart doesn't change what the
+/// user sees (the helper task can't pass arguments, so this travels in the marker file).
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Relaunch {
+    /// Started by sign-in autostart (the helper task drops `--autostart`).
+    pub autostart: bool,
+    /// Show the dashboard? `None`: decide as on a normal start.
+    pub show: Option<bool>,
+    /// Dashboard route, e.g. "/rules".
+    pub page: Option<String>,
+    /// Dashboard outer position and inner size in physical px.
+    pub bounds: Option<(i32, i32, u32, u32)>,
+    pub maximized: bool,
 }
 
-/// Called very early at startup: wait (max 15 s) for a previous instance that is relaunching us.
-pub fn wait_for_previous_instance(marker: &Path) {
-    let Ok(s) = std::fs::read_to_string(marker) else { return };
+#[derive(Serialize, Deserialize)]
+struct Marker {
+    pid: u32,
+    #[serde(flatten)]
+    state: Relaunch,
+}
+
+/// A marker older than this is left over from a failed relaunch; ignore what it says.
+const MARKER_MAX_AGE: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// Before relaunching, record our pid so the new instance waits for us to exit
+/// (otherwise the single-instance guard would hand off to the dying process).
+pub fn write_relaunch_marker(marker: &Path, state: &Relaunch) {
+    let m = Marker { pid: std::process::id(), state: state.clone() };
+    let _ = std::fs::write(marker, serde_json::to_vec(&m).unwrap_or_default());
+}
+
+fn parse_marker(s: &str) -> Option<(u32, Relaunch)> {
+    let s = s.trim();
+    if let Ok(pid) = s.parse::<u32>() {
+        return Some((pid, Relaunch::default())); // older format: just the pid
+    }
+    serde_json::from_str::<Marker>(s).ok().map(|m| (m.pid, m.state))
+}
+
+/// Called very early at startup: wait (max 15 s) for a previous instance that is relaunching us,
+/// and return what it handed over (`None` on a normal start).
+pub fn wait_for_previous_instance(marker: &Path) -> Option<Relaunch> {
+    let fresh = std::fs::metadata(marker).ok()?.modified().ok()?.elapsed().map_or(true, |age| age < MARKER_MAX_AGE);
+    let s = std::fs::read_to_string(marker).ok()?;
     let _ = std::fs::remove_file(marker);
-    let Ok(pid) = s.trim().parse::<u32>() else { return };
-    if pid == std::process::id() {
-        return;
+    let (pid, state) = parse_marker(&s)?;
+    if !fresh {
+        return None;
     }
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
-    while std::time::Instant::now() < deadline && process_alive(pid) {
-        std::thread::sleep(std::time::Duration::from_millis(150));
+    if pid != std::process::id() {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+        while std::time::Instant::now() < deadline && process_alive(pid) {
+            std::thread::sleep(std::time::Duration::from_millis(150));
+        }
     }
+    Some(state)
 }
 
 #[cfg(windows)]
@@ -267,6 +341,27 @@ mod tests {
         assert_eq!(quote_arg("abc"), "abc");
         assert_eq!(quote_arg("C:\\Program Files\\x.exe"), "\"C:\\Program Files\\x.exe\"");
         assert_eq!(quote_arg("a\"b"), "\"a\\\"b\"");
+    }
+    #[test]
+    fn exe_paths_compare_loosely() {
+        assert!(same_exe(Path::new(r"C:\Users\Me\AppData\Local\ClashWin\clashwin.exe"), Path::new(r"c:\users\me\appdata\local\clashwin\ClashWin.exe")));
+        assert!(same_exe(Path::new(r"\\?\C:\A\clashwin.exe"), Path::new("C:/A/clashwin.exe")));
+        assert!(!same_exe(Path::new(r"C:\dev\target\debug\clashwin.exe"), Path::new(r"C:\A\clashwin.exe")));
+    }
+    #[test]
+    fn relaunch_marker_roundtrip() {
+        let dir = std::env::temp_dir().join(format!("clashwin-marker-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let marker = dir.join("relaunch.pid");
+        let state = Relaunch { show: Some(false), page: Some("/rules".into()), bounds: Some((-8, 20, 1240, 800)), ..Default::default() };
+        write_relaunch_marker(&marker, &state);
+        assert_eq!(wait_for_previous_instance(&marker), Some(state));
+        assert!(!marker.exists());
+        assert_eq!(wait_for_previous_instance(&marker), None);
+        // older format: bare pid
+        std::fs::write(&marker, std::process::id().to_string()).unwrap();
+        assert_eq!(wait_for_previous_instance(&marker), Some(Relaunch::default()));
+        let _ = std::fs::remove_dir_all(&dir);
     }
     #[test]
     fn task_xml_has_highest_level() {

@@ -56,7 +56,7 @@ const dict: ModuleDict = {
 
     // Permissions
     helperSection: "系统网络辅助服务",
-    helperDesc: "增强模式（TUN）需要创建虚拟网卡并修改系统路由，这在 Windows 上需要管理员权限。安装辅助工具后，ClashWin 会在登录时以管理员身份自动运行，之后切换增强模式无需再次授权。",
+    helperDesc: "增强模式（TUN）需要创建虚拟网卡并修改系统路由，这在 Windows 上需要管理员权限。安装辅助工具后，ClashWin 每次启动都会自动以管理员身份运行（无需再次授权），切换增强模式不会重启程序。",
     adminRights: "管理员权限",
     adminYes: "已获取",
     adminNo: "未获取",
@@ -217,7 +217,7 @@ const dict: ModuleDict = {
     ssidExists: "{ssid} is already in the list",
 
     helperSection: "System Network Helper",
-    helperDesc: "Enhanced Mode (TUN) creates a virtual network adapter and changes system routes, which requires administrator rights on Windows. With the helper installed, ClashWin starts elevated at sign-in, so switching Enhanced Mode needs no further prompts.",
+    helperDesc: "Enhanced Mode (TUN) creates a virtual network adapter and changes system routes, which requires administrator rights on Windows. With the helper installed, ClashWin always starts elevated without a prompt, so switching Enhanced Mode doesn't restart the app.",
     adminRights: "Administrator Rights",
     adminYes: "Granted",
     adminNo: "Not granted",
