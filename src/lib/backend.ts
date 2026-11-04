@@ -57,7 +57,9 @@ export type BackendEvent =
   | "settings://changed" // AppSettings
   | "profiles://changed" // Profile[]
   | "app://navigate" // { page: string } - dashboard should navigate
-  | "app://notify"; // { kind: "info"|"success"|"warning"|"error", message: string }
+  | "app://notify" // { kind: "info"|"success"|"warning"|"error", message: string }
+  | "tray://shown" // tray popup was just shown (it doesn't take focus, so no focus event)
+  | "tray://hidden"; // tray popup was hidden
 
 export async function listen<T>(event: BackendEvent, cb: (payload: T) => void): Promise<() => void> {
   if (!isTauri) return mockListen<T>(event, cb);
@@ -102,6 +104,11 @@ export const backend = {
     call<{ mode: "mmdb" | "dat"; files: { name: string; exists: boolean; size: number; modified?: number }[] }>("geo_db_status"),
   /** Write a UTF-8 text file (used after a save dialog, e.g. exporting logs) */
   writeTextFile: (path: string, content: string) => call<void>("write_text_file", { path, content }),
+  /** Tray popup: clickable/visible shapes in CSS px relative to the window; [] = whole window */
+  setTrayPanelRegion: (rects: { x: number; y: number; width: number; height: number; radius?: number }[]) =>
+    call<void>("set_tray_panel_region", { rects }),
+  /** Tray popup: take keyboard focus (it normally shows without activation) */
+  focusTrayPanel: () => call<void>("focus_tray_panel"),
   /** Tray popup reports its content size so the backend can resize/reposition the window */
   setTrayPanelSize: (width: number, height: number) => call<void>("set_tray_panel_size", { width, height }),
 

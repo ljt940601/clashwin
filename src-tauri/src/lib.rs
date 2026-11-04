@@ -14,6 +14,7 @@ pub mod stats;
 pub mod sysproxy;
 pub mod tasks;
 pub mod tray;
+pub mod traypopup;
 pub mod util;
 pub mod windows;
 pub mod winutil;
@@ -82,6 +83,8 @@ pub fn run() {
             cmds::open_settings,
             cmds::hide_tray_panel,
             cmds::set_tray_panel_size,
+            cmds::set_tray_panel_region,
+            cmds::focus_tray_panel,
             cmds::open_url,
             cmds::reveal_path,
             cmds::process_icon,

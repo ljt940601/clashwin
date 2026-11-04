@@ -4,7 +4,7 @@ use crate::util::Res;
 
 const KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Internet Settings";
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ProxyState {
     pub enabled: bool,
     pub server: String,
@@ -51,25 +51,86 @@ fn notify() {
     }
 }
 
-/// Point the system proxy at the local mixed port.
-pub fn enable(port: u16, bypass: &[String]) -> Res<()> {
-    apply(&ProxyState { enabled: true, server: format!("127.0.0.1:{port}"), bypass: bypass_string(bypass) })
+/// Point the system proxy at the local mixed port. Returns the state that was written.
+pub fn enable(port: u16, bypass: &[String]) -> Res<ProxyState> {
+    let st = ProxyState { enabled: true, server: format!("127.0.0.1:{port}"), bypass: bypass_string(bypass) };
+    apply(&st)?;
+    Ok(st)
 }
 
-/// Turn off the system proxy only if it still points at us.
-pub fn disable(port: u16) -> Res<()> {
+/// Give the system proxy back after we set it.
+///
+/// Only touches the registry when it still holds exactly what we wrote; if another program
+/// (e.g. another Clash client) has changed it since, it is left alone. When the settings we
+/// replaced pointed at a proxy that is still listening, they are restored; otherwise the
+/// proxy is switched off.
+pub fn release(written: &ProxyState, previous: Option<&ProxyState>) -> Res<()> {
     let cur = current()?;
-    let ours = cur.server.contains(&format!("127.0.0.1:{port}")) || cur.server.is_empty();
-    if cur.enabled && ours {
-        apply(&ProxyState { enabled: false, server: cur.server, bypass: cur.bypass })?;
-    } else if cur.enabled && !ours {
-        log::info!("system proxy points elsewhere ({}); leaving it", cur.server);
+    if !(cur.enabled && cur.server == written.server) {
+        log::info!("system proxy was changed by another program ({}); leaving it", cur.server);
+        return Ok(());
     }
-    Ok(())
+    if let Some(prev) = previous {
+        if prev.enabled && prev.server != written.server && proxy_alive(&prev.server) {
+            log::info!("restoring previous system proxy {}", prev.server);
+            return apply(prev);
+        }
+    }
+    apply(&ProxyState { enabled: false, server: cur.server, bypass: cur.bypass })
 }
 
-pub fn is_ours(port: u16) -> bool {
-    current().map(|c| c.enabled && c.server.contains(&format!("127.0.0.1:{port}"))).unwrap_or(false)
+/// Is a proxy at "host:port" (or WinINet "http=host:port;https=...") accepting connections?
+/// Unparseable values are assumed alive so they are restored as they were.
+fn proxy_alive(server: &str) -> bool {
+    use std::net::{TcpStream, ToSocketAddrs};
+    let first = server.split(';').next().unwrap_or("").trim();
+    let addr = first.rsplit_once('=').map(|(_, a)| a).unwrap_or(first);
+    let Some(sock) = addr.to_socket_addrs().ok().and_then(|mut a| a.next()) else { return true };
+    TcpStream::connect_timeout(&sock, std::time::Duration::from_millis(400)).is_ok()
+}
+
+/// PID of the process listening on 127.0.0.1/0.0.0.0:`port` (IPv4 TCP), if any.
+#[cfg(windows)]
+pub fn listener_pid(port: u16) -> Option<u32> {
+    use windows_sys::Win32::NetworkManagement::IpHelper::{GetExtendedTcpTable, MIB_TCPTABLE_OWNER_PID, TCP_TABLE_OWNER_PID_LISTENER};
+    use windows_sys::Win32::Networking::WinSock::AF_INET;
+    unsafe {
+        let mut size: u32 = 0;
+        GetExtendedTcpTable(std::ptr::null_mut(), &mut size, 0, AF_INET as u32, TCP_TABLE_OWNER_PID_LISTENER, 0);
+        if size == 0 {
+            return None;
+        }
+        // u32-aligned buffer for the table header and rows
+        let mut buf = vec![0u32; (size as usize + 3) / 4];
+        if GetExtendedTcpTable(buf.as_mut_ptr() as *mut _, &mut size, 0, AF_INET as u32, TCP_TABLE_OWNER_PID_LISTENER, 0) != 0 {
+            return None;
+        }
+        let table = &*(buf.as_ptr() as *const MIB_TCPTABLE_OWNER_PID);
+        let rows = std::slice::from_raw_parts(table.table.as_ptr(), table.dwNumEntries as usize);
+        rows.iter()
+            .find(|r| {
+                // port is in network byte order in the low 16 bits
+                let p = (((r.dwLocalPort & 0xff) << 8) | ((r.dwLocalPort >> 8) & 0xff)) as u16;
+                p == port
+            })
+            .map(|r| r.dwOwningPid)
+    }
+}
+#[cfg(not(windows))]
+pub fn listener_pid(_port: u16) -> Option<u32> {
+    None
+}
+
+/// First free localhost TCP port at or after `start` (checked by binding).
+pub fn free_port(start: u16) -> u16 {
+    (start..start.saturating_add(200)).find(|p| std::net::TcpListener::bind(("127.0.0.1", *p)).is_ok()).unwrap_or(start)
+}
+
+pub fn is_ours(written: Option<&ProxyState>) -> bool {
+    match (written, current()) {
+        (Some(w), Ok(c)) => c.enabled && c.server == w.server,
+        _ => false,
+    }
 }
 
 #[cfg(not(windows))]
@@ -84,6 +145,27 @@ pub fn apply(_state: &ProxyState) -> Res<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn proxy_alive_checks_listener() {
+        let l = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = l.local_addr().unwrap().port();
+        assert!(proxy_alive(&format!("127.0.0.1:{port}")));
+        assert!(proxy_alive(&format!("http=127.0.0.1:{port};https=127.0.0.1:{port}")));
+        drop(l);
+        assert!(!proxy_alive(&format!("127.0.0.1:{port}")));
+        assert!(proxy_alive("not a host"));
+    }
+
+    #[test]
+    fn listener_pid_finds_us() {
+        let l = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = l.local_addr().unwrap().port();
+        #[cfg(windows)]
+        assert_eq!(listener_pid(port), Some(std::process::id()));
+        let busy = free_port(port);
+        assert_ne!(busy, port);
+    }
+
     #[test]
     fn bypass() {
         assert_eq!(bypass_string(&["localhost".into(), " 127.* ".into(), "".into(), "<local>".into()]), "localhost;127.*;<local>");

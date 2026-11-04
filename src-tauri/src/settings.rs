@@ -392,6 +392,7 @@ impl Default for AppSettings {
 impl AppSettings {
     /// Load from disk (missing fields take defaults). Generates a controller secret on first run.
     pub fn load(path: &Path) -> AppSettings {
+        let first_run = !path.exists();
         let mut s: AppSettings = std::fs::read(path)
             .ok()
             .and_then(|b| serde_json::from_slice(&b).map_err(|e| log::warn!("settings.json invalid: {e}")).ok())
@@ -404,6 +405,20 @@ impl AppSettings {
         }
         if s.controller.host.trim().is_empty() {
             s.controller.host = "127.0.0.1".into();
+        }
+        if first_run {
+            // Another Clash client often already holds 7890 / 9097; start on free ports instead
+            // of silently sharing them.
+            let mixed = crate::sysproxy::free_port(s.engine.network.mixed_port);
+            if mixed != s.engine.network.mixed_port {
+                log::info!("mixed port {} is taken, using {mixed}", s.engine.network.mixed_port);
+                s.engine.network.mixed_port = mixed;
+            }
+            let ctl = crate::sysproxy::free_port(s.controller.port);
+            if ctl != s.controller.port {
+                log::info!("controller port {} is taken, using {ctl}", s.controller.port);
+                s.controller.port = ctl;
+            }
         }
         s
     }

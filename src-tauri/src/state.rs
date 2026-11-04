@@ -22,6 +22,8 @@ pub struct TrayUi {
     pub anchor: Option<(f64, f64)>,
     pub hidden_at: Option<Instant>,
     pub size: (f64, f64),
+    /// Visible shapes of the popup (physical px, window-relative); empty = whole window.
+    pub region: Vec<crate::traypopup::RegionRect>,
 }
 
 pub struct AppState {
@@ -35,6 +37,8 @@ pub struct AppState {
     /// latest (up, down) bytes/s from the traffic stream
     pub traffic: Mutex<(u64, u64)>,
     pub sysproxy_by_us: AtomicBool,
+    /// What we wrote to the system proxy and what was there before (restored on release).
+    pub sysproxy_owned: Mutex<Option<(sysproxy::ProxyState, Option<sysproxy::ProxyState>)>>,
     pub editor_watch: Mutex<HashMap<String, Option<SystemTime>>>,
     pub icon_cache: Mutex<HashMap<String, Option<String>>>,
     pub tray_ui: Mutex<TrayUi>,
@@ -76,9 +80,10 @@ impl AppState {
             geo,
             traffic: Mutex::new((0, 0)),
             sysproxy_by_us: AtomicBool::new(false),
+            sysproxy_owned: Mutex::new(None),
             editor_watch: Mutex::new(HashMap::new()),
             icon_cache: Mutex::new(HashMap::new()),
-            tray_ui: Mutex::new(TrayUi { anchor: None, hidden_at: None, size: (320.0, 660.0) }),
+            tray_ui: Mutex::new(TrayUi { anchor: None, hidden_at: None, size: (600.0, 660.0), region: vec![] }),
             wifi_prev: Mutex::new(None),
             reload_seq: AtomicU64::new(0),
             op: tokio::sync::Mutex::new(()),
@@ -376,7 +381,15 @@ impl AppState {
 
         if self.settings.read().system_proxy {
             if let Err(e) = self.apply_sysproxy_registry(true) {
+                // Don't leave the switch showing "on" while the proxy isn't ours.
                 log::warn!("system proxy: {e}");
+                let _ = self.update_settings(app, |s| s.system_proxy = false);
+                let msg = e.message.clone();
+                let (me, app2) = (self.clone(), app.clone());
+                tokio::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                    me.notify(&app2, "warning", &msg, &msg);
+                });
             }
         }
         Ok(status)
@@ -416,15 +429,66 @@ impl AppState {
 
     /// Write the registry according to `enable` (does not touch settings).
     pub fn apply_sysproxy_registry(&self, enable: bool) -> Res<()> {
-        let (port, bypass) = {
+        let (port, bypass, zh) = {
             let s = self.settings.read();
-            (s.engine.network.mixed_port, s.engine.network.bypass.clone())
+            (s.engine.network.mixed_port, s.engine.network.bypass.clone(), s.is_zh())
         };
         if enable {
-            sysproxy::enable(port, &bypass)?;
+            // Only point the system at a port our own core is serving; otherwise the traffic
+            // would silently go to whatever program holds that port (e.g. another Clash client).
+            let core_pid = self.core.status().pid;
+            match (port, sysproxy::listener_pid(port), core_pid) {
+                (0, ..) => {
+                    return Err(AppError::new(
+                        "PORT_IN_USE",
+                        if zh { "混合端口已关闭（为 0），无法开启系统代理。请在 引擎 → 网络 中设置端口。" } else { "The mixed port is off (0), so the system proxy can't be enabled. Set a port in Engine → Network." },
+                    ))
+                }
+                (_, Some(owner), Some(core)) if owner != core => {
+                    return Err(AppError::new(
+                        "PORT_IN_USE",
+                        if zh {
+                            format!("端口 {port} 被其他程序（进程 {owner}）占用，ClashWin 的代理没有在这个端口上运行。请在 引擎 → 网络 中把混合端口改成其他端口后再开启系统代理。")
+                        } else {
+                            format!("Port {port} is held by another program (PID {owner}), so ClashWin's proxy isn't running there. Change the mixed port in Engine → Network, then enable the system proxy.")
+                        },
+                    ))
+                }
+                _ => {}
+            }
+            let before = sysproxy::current().ok();
+            let written = sysproxy::enable(port, &bypass)?;
+            let mut owned = self.sysproxy_owned.lock();
+            // Keep the settings from before our first write: across re-applies (port or bypass
+            // change) and across restarts (saved on disk), so they can be restored later.
+            let saved = self.paths.data.join("sysproxy_prev.json");
+            let previous = match owned.take() {
+                Some((_, prev)) => prev,
+                None => {
+                    let fresh = before.filter(|b| !(b.enabled && b.server.starts_with("127.0.0.1:") && b.server == written.server));
+                    let from_disk = std::fs::read(&saved).ok().and_then(|b| serde_json::from_slice::<sysproxy::ProxyState>(&b).ok());
+                    // After a restart the registry already holds our own value; use the saved one.
+                    match fresh {
+                        Some(f) if f.server != written.server => Some(f),
+                        _ => from_disk,
+                    }
+                }
+            };
+            match &previous {
+                Some(p) => {
+                    let _ = crate::util::write_atomic(&saved, &serde_json::to_vec(p).unwrap_or_default());
+                }
+                None => {
+                    let _ = std::fs::remove_file(&saved);
+                }
+            }
+            *owned = Some((written, previous));
             self.sysproxy_by_us.store(true, Ordering::SeqCst);
         } else {
-            sysproxy::disable(port)?;
+            if let Some((written, previous)) = self.sysproxy_owned.lock().take() {
+                sysproxy::release(&written, previous.as_ref())?;
+                let _ = std::fs::remove_file(self.paths.data.join("sysproxy_prev.json"));
+            }
             self.sysproxy_by_us.store(false, Ordering::SeqCst);
         }
         Ok(())
@@ -460,7 +524,9 @@ impl AppState {
         }
         self.core.generation.fetch_add(1, Ordering::SeqCst);
         self.core.kill();
-        if self.sysproxy_by_us.load(Ordering::SeqCst) || sysproxy::is_ours(self.settings.read().engine.network.mixed_port) {
+        // Only give back a proxy we set ourselves; never guess by address (another client may
+        // use the same port).
+        if self.sysproxy_by_us.load(Ordering::SeqCst) {
             let _ = self.apply_sysproxy_registry(false);
         }
         let _ = self.stats.flush();

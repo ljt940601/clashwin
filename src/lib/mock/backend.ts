@@ -311,6 +311,8 @@ export async function mockInvoke<T>(cmd: string, args: any = {}): Promise<T> {
     case "core_rollback":
     case "write_text_file":
     case "set_tray_panel_size":
+    case "set_tray_panel_region":
+    case "focus_tray_panel":
       if (cmd === "open_url") window.open(args.url, "_blank");
       return r(undefined);
     default:

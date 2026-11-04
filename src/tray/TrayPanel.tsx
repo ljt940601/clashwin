@@ -25,7 +25,7 @@ import { useT } from "@/i18n";
 import { useApp, useActiveProfile } from "@/lib/store";
 import { useLive } from "@/lib/live";
 import { mihomo } from "@/lib/mihomo";
-import { backend, errorMessage, isTauri } from "@/lib/backend";
+import { backend, errorMessage, isTauri, listen } from "@/lib/backend";
 import { formatBytes, formatSpeed, daysLeft } from "@/lib/format";
 import { useProviderSubs } from "@/lib/providerSubs";
 import { detectCountry, flagEmoji, hasFlag } from "@/lib/countries";
@@ -234,8 +234,55 @@ export default function TrayPanel() {
     else setLanIp(null);
   }, [settings.engine.network.allowLan, settings.engine.network.bindAddress]);
 
+  /* ----- popup shown / hidden (it never takes focus, so focus events don't fire) ----- */
+  React.useEffect(() => {
+    const offs: Promise<() => void>[] = [
+      listen("tray://shown", () => {
+        setFly(null);
+        refresh();
+      }),
+      listen("tray://hidden", () => {
+        setFly(null);
+        setRuleOpen(false);
+      }),
+    ];
+    return () => offs.forEach((p) => p.then((off) => off()));
+  }, [refresh]);
+
   /* ----- native window sizing ----- */
-  const reserve = fly || !isTauri ? FLY_W + GAP : 0;
+  // The window always reserves room for a flyout on the left so opening one never
+  // resizes or moves it; the region below keeps that room transparent to clicks.
+  const reserve = FLY_W + GAP;
+
+  /** Report the visible shapes (panel + open flyout) so only they are clickable. */
+  const reportRegion = React.useCallback(() => {
+    if (!isTauri) return;
+    const root = rootRef.current;
+    const panel = panelRef.current;
+    if (!root || !panel) return;
+    if (ruleOpen) {
+      backend.setTrayPanelRegion([]).catch(() => {}); // dialog overlays the whole window
+      return;
+    }
+    const rects = [{ x: panel.offsetLeft, y: panel.offsetTop, width: panel.offsetWidth, height: panel.offsetHeight, radius: 12 }];
+    const f = root.querySelector<HTMLElement>(".tr-flyout");
+    if (f) rects.push({ x: f.offsetLeft, y: f.offsetTop, width: f.offsetWidth, height: f.offsetHeight, radius: 12 });
+    backend.setTrayPanelRegion(rects).catch(() => {});
+  }, [ruleOpen]);
+
+  React.useLayoutEffect(() => {
+    reportRegion();
+    const f = rootRef.current?.querySelector<HTMLElement>(".tr-flyout");
+    if (!f) return;
+    const ro = new ResizeObserver(() => reportRegion());
+    ro.observe(f);
+    return () => ro.disconnect();
+  }, [fly, ruleOpen, reportRegion]);
+
+  // Typing in the quick-rule dialog needs keyboard focus.
+  React.useEffect(() => {
+    if (ruleOpen) backend.focusTrayPanel().catch(() => {});
+  }, [ruleOpen]);
   React.useLayoutEffect(() => {
     const root = rootRef.current;
     const panel = panelRef.current;
@@ -248,6 +295,7 @@ export default function TrayPanel() {
       timer = window.setTimeout(() => {
         const w = Math.ceil(root.getBoundingClientRect().width);
         backend.setTrayPanelSize(isTauri ? w : PANEL_W + 2, h).catch(() => {});
+        reportRegion();
       }, 30);
     };
     const ro = new ResizeObserver(report);
@@ -258,7 +306,7 @@ export default function TrayPanel() {
       ro.disconnect();
       window.clearTimeout(timer);
     };
-  }, [reserve]);
+  }, [reserve, reportRegion]);
 
   /* ----- flyout hover logic ----- */
   const cancelTimers = () => {

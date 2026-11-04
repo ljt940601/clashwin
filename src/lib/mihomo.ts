@@ -54,6 +54,9 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
 
 const enc = encodeURIComponent;
 
+/** Node name -> proxy-provider name, for nodes that only exist inside a provider (filled by proxies()). */
+const providerOf = new Map<string, string>();
+
 export const mihomo = {
   version: () => req<{ version: string; meta?: boolean }>("GET", "/version"),
   configs: () => req<MihomoConfigs>("GET", "/configs"),
@@ -67,10 +70,14 @@ export const mihomo = {
       req<{ proxies: Record<string, ProxyItem> }>("GET", "/proxies"),
       req<{ providers: Record<string, ProxyProvider> }>("GET", "/providers/proxies").catch(() => ({ providers: {} })),
     ]);
+    providerOf.clear();
     for (const prov of Object.values(pv.providers ?? {})) {
       if (prov.vehicleType === "Compatible") continue; // group-backed pseudo providers
       for (const n of prov.proxies ?? []) {
-        if (!p.proxies[n.name]) p.proxies[n.name] = { ...n, "provider-name": prov.name };
+        if (!p.proxies[n.name]) {
+          p.proxies[n.name] = { ...n, "provider-name": prov.name };
+          providerOf.set(n.name, prov.name);
+        }
       }
     }
     return p;
@@ -78,8 +85,17 @@ export const mihomo = {
   selectProxy: (group: string, name: string) => req<void>("PUT", `/proxies/${enc(group)}`, { name }),
   /** Clears a fixed selection on URLTest/Fallback groups */
   unfixProxy: (group: string) => req<void>("DELETE", `/proxies/${enc(group)}`),
-  proxyDelay: (name: string, url: string, timeout: number) =>
-    req<{ delay: number }>("GET", `/proxies/${enc(name)}/delay?url=${enc(url)}&timeout=${timeout}`),
+  /**
+   * Single node latency. Provider nodes aren't reachable through /proxies/{name}/delay
+   * (the core answers 404), so they are tested through their provider instead.
+   */
+  proxyDelay: (name: string, url: string, timeout: number) => {
+    const provider = providerOf.get(name);
+    const path = provider
+      ? `/providers/proxies/${enc(provider)}/${enc(name)}/healthcheck?url=${enc(url)}&timeout=${timeout}`
+      : `/proxies/${enc(name)}/delay?url=${enc(url)}&timeout=${timeout}`;
+    return req<{ delay: number }>("GET", path);
+  },
   /** Tests every member of a group; returns name → delay (missing = timeout) */
   groupDelay: (group: string, url: string, timeout: number) =>
     req<Record<string, number>>("GET", `/group/${enc(group)}/delay?url=${enc(url)}&timeout=${timeout}`),

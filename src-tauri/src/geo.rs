@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 /// (code, en name, city, lat, lon) — representative city per country (map route endpoints).
+#[allow(clippy::approx_constant)] // 3.14 below is a latitude, not PI
 pub const COUNTRIES: &[(&str, &str, &str, f64, f64)] = &[
     ("CN", "China", "Shanghai", 31.23, 121.47),
     ("HK", "Hong Kong", "Hong Kong", 22.32, 114.17),

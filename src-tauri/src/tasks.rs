@@ -34,6 +34,7 @@ pub fn spawn_all(app: &AppHandle) {
 
 async fn startup(app: AppHandle) {
     let st = state(&app);
+    cmds::cleanup_validation_files(&st.paths.home);
     // keep autostart registration in sync with settings
     {
         use tauri_plugin_autostart::ManagerExt;
@@ -43,6 +44,23 @@ async fn startup(app: AppHandle) {
                 let _ = if want { app.autolaunch().enable() } else { app.autolaunch().disable() };
             }
         }
+    }
+    // TUN only takes effect with admin rights. Don't show it as on when it can't be.
+    if !st.elevated && st.settings.read().tun_mode {
+        if crate::admin::helper_installed() && st.relaunch_elevated(&app).is_ok() {
+            return; // the elevated instance takes over
+        }
+        let _ = st.update_settings(&app, |s| s.tun_mode = false);
+        let (st2, app2) = (st.clone(), app.clone());
+        tauri::async_runtime::spawn(async move {
+            sleep(Duration::from_secs(3)).await;
+            st2.notify(
+                &app2,
+                "warning",
+                "增强模式需要管理员权限，已暂时关闭。可在 设置 → 权限 中安装辅助服务，或以管理员身份重启。",
+                "Enhanced Mode needs administrator rights and was turned off. Install the helper in Settings → Permissions, or restart as administrator.",
+            );
+        });
     }
     if std::env::var_os("CLASHWIN_SKIP_CORE").is_some() {
         log::info!("CLASHWIN_SKIP_CORE set: not starting or installing the core");

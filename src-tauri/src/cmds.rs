@@ -82,6 +82,29 @@ pub async fn hide_tray_panel(app: AppHandle) -> Res<()> {
     Ok(())
 }
 
+#[derive(serde::Deserialize)]
+pub struct PanelRect {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    #[serde(default)]
+    pub radius: f64,
+}
+
+#[tauri::command]
+pub async fn set_tray_panel_region(app: AppHandle, rects: Vec<PanelRect>) -> Res<()> {
+    let r: Vec<(f64, f64, f64, f64, f64)> = rects.iter().map(|p| (p.x, p.y, p.width, p.height, p.radius)).collect();
+    windows::set_tray_panel_region(&app, &r);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn focus_tray_panel(app: AppHandle) -> Res<()> {
+    windows::focus_tray_panel(&app);
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn set_tray_panel_size(app: AppHandle, width: f64, height: f64) -> Res<()> {
     windows::set_tray_panel_size(&app, width, height);
@@ -301,16 +324,19 @@ pub async fn reset_engine(app: AppHandle, section: String) -> Res<AppSettings> {
 #[tauri::command]
 pub async fn set_system_proxy(app: AppHandle, enable: bool) -> Res<()> {
     let st = state(&app);
-    st.update_settings(&app, |s| s.system_proxy = enable)?;
     if enable {
-        if st.core.is_running() {
-            st.apply_sysproxy_registry(true)?;
-        } else if st.paths.core_exe().exists() {
-            st.start_core(&app).await?; // applies the proxy once running
-        } else {
-            return Err(AppError::new("CORE_NOT_INSTALLED", "The mihomo core is not installed"));
+        if !st.core.is_running() {
+            if !st.paths.core_exe().exists() {
+                return Err(AppError::new("CORE_NOT_INSTALLED", "The mihomo core is not installed"));
+            }
+            st.start_core(&app).await?;
         }
+        // Apply first: if the port belongs to another program this fails and the
+        // setting stays off instead of claiming a proxy that isn't ours.
+        st.apply_sysproxy_registry(true)?;
+        st.update_settings(&app, |s| s.system_proxy = true)?;
     } else {
+        st.update_settings(&app, |s| s.system_proxy = false)?;
         st.apply_sysproxy_registry(false)?;
     }
     Ok(())
@@ -845,31 +871,79 @@ pub async fn read_profile(app: AppHandle, id: String) -> Res<String> {
 }
 
 /// Validate with `mihomo -t` when the core is installed, else a YAML sanity check.
+///
+/// On a fresh install `mihomo -t` first downloads the GeoIP/GeoSite databases, which can
+/// take a long time; after a few seconds we stop waiting and accept a config that parses.
 async fn validate_with_core(st: &AppState, content: &str) -> Res<()> {
     config::parse_profile(content)?;
     let exe = st.paths.core_exe();
     if !exe.exists() {
         return config::validate_profile_text(content).map(|_| ());
     }
-    let tmp = st.paths.home.join("validate.yaml");
+    let tag = uuid::Uuid::new_v4().simple().to_string();
+    let tmp = st.paths.home.join(format!("validate-{tag}.yaml"));
+    let log = st.paths.home.join(format!("validate-{tag}.log"));
     std::fs::write(&tmp, content)?;
-    let home = st.paths.home.clone();
-    let tmp2 = tmp.clone();
-    let out = tokio::task::spawn_blocking(move || crate::util::hidden_command(&exe).arg("-t").arg("-d").arg(&home).arg("-f").arg(&tmp2).output())
-        .await
-        .map_err(|e| AppError::io(e.to_string()))??;
+    let (home, tmp2, log2) = (st.paths.home.clone(), tmp.clone(), log.clone());
+    // Output goes to a file, not a pipe: a full pipe would block the child until the timeout.
+    let res = tokio::task::spawn_blocking(move || -> std::io::Result<Option<bool>> {
+        let out = std::fs::File::create(&log2)?;
+        let mut child = crate::util::hidden_command(&exe)
+            .arg("-t")
+            .arg("-d")
+            .arg(&home)
+            .arg("-f")
+            .arg(&tmp2)
+            .stdout(out.try_clone()?)
+            .stderr(out)
+            .spawn()?;
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(12);
+        loop {
+            if let Some(status) = child.try_wait()? {
+                return Ok(Some(status.success()));
+            }
+            if std::time::Instant::now() > deadline {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Ok(None);
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+    })
+    .await;
+    let output = std::fs::read(&log).map(|b| crate::util::decode_console(&b)).unwrap_or_default();
     let _ = std::fs::remove_file(&tmp);
-    if out.status.success() {
-        return Ok(());
+    let _ = std::fs::remove_file(&log);
+    match res {
+        Ok(Ok(Some(true))) => Ok(()),
+        Ok(Ok(Some(false))) => {
+            let msg = output
+                .lines()
+                .filter(|l| l.to_ascii_lowercase().contains("error") || l.to_ascii_lowercase().contains("fatal"))
+                .last()
+                .unwrap_or_else(|| output.lines().last().unwrap_or("Invalid configuration"))
+                .to_string();
+            Err(AppError::invalid_config(msg))
+        }
+        Ok(Ok(None)) => {
+            log::warn!("mihomo -t did not finish in time (likely downloading geo data); accepting the parsed config");
+            config::validate_profile_text(content).map(|_| ())
+        }
+        Ok(Err(e)) => Err(AppError::io(format!("Failed to run the core for validation: {e}"))),
+        Err(e) => Err(AppError::io(e.to_string())),
     }
-    let text = format!("{}{}", crate::util::decode_console(&out.stdout), crate::util::decode_console(&out.stderr));
-    let msg = text
-        .lines()
-        .filter(|l| l.to_ascii_lowercase().contains("error") || l.to_ascii_lowercase().contains("fatal"))
-        .last()
-        .unwrap_or_else(|| text.lines().last().unwrap_or("Invalid configuration"))
-        .to_string();
-    Err(AppError::invalid_config(msg))
+}
+
+/// Remove validation leftovers from older versions / interrupted runs.
+pub fn cleanup_validation_files(home: &std::path::Path) {
+    if let Ok(rd) = std::fs::read_dir(home) {
+        for e in rd.flatten() {
+            let name = e.file_name().to_string_lossy().to_string();
+            if name.starts_with("validate") && (name.ends_with(".yaml") || name.ends_with(".log")) {
+                let _ = std::fs::remove_file(e.path());
+            }
+        }
+    }
 }
 
 #[tauri::command]

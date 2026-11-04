@@ -92,21 +92,22 @@ pub fn create_tray_panel(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .minimizable(false)
         .skip_taskbar(true)
         .always_on_top(true)
-        .focused(true)
+        .focused(false)
         .visible(false)
         .build()?;
+    crate::traypopup::make_non_activating(&w);
     let handle = w.clone();
     let app2 = app.clone();
     w.on_window_event(move |e| match e {
+        // Only reached when the popup was explicitly focused (e.g. for typing in a dialog).
         WindowEvent::Focused(false) => {
             if handle.is_visible().unwrap_or(false) {
-                let _ = handle.hide();
-                state(&app2).tray_ui.lock().hidden_at = Some(Instant::now());
+                hide_tray_panel(&app2);
             }
         }
         WindowEvent::CloseRequested { api, .. } => {
             api.prevent_close();
-            let _ = handle.hide();
+            hide_tray_panel(&app2);
         }
         _ => {}
     });
@@ -114,9 +115,35 @@ pub fn create_tray_panel(app: &AppHandle) -> tauri::Result<WebviewWindow> {
 }
 
 pub fn hide_tray_panel(app: &AppHandle) {
+    crate::traypopup::cancel_watch();
     if let Some(w) = app.get_webview_window("tray") {
+        if w.is_visible().unwrap_or(false) {
+            state(app).tray_ui.lock().hidden_at = Some(Instant::now());
+        }
+        // The popup is shown with raw Win32 (to avoid activation), so Tauri still thinks it
+        // is hidden and its hide() would be a no-op; hide it the same raw way.
+        crate::traypopup::hide_raw(&w);
         let _ = w.hide();
-        state(app).tray_ui.lock().hidden_at = Some(Instant::now());
+        let _ = w.emit("tray://hidden", ());
+    }
+}
+
+/// Clickable shapes reported by the popup (CSS px, window-relative). Empty = whole window.
+pub fn set_tray_panel_region(app: &AppHandle, rects: &[(f64, f64, f64, f64, f64)]) {
+    let Some(w) = app.get_webview_window("tray") else { return };
+    let scale = w.scale_factor().unwrap_or(1.0);
+    let px = |v: f64| (v * scale).round() as i32;
+    let region: Vec<crate::traypopup::RegionRect> = rects.iter().map(|&(x, y, rw, rh, r)| (px(x), px(y), px(rw), px(rh), px(r))).collect();
+    crate::traypopup::set_region(&w, &region);
+    crate::traypopup::update_hook_region(&region);
+    state(app).tray_ui.lock().region = region;
+}
+
+/// Give the popup keyboard focus (needed while typing in its dialogs). The overflow
+/// area will close, which is fine while the user types.
+pub fn focus_tray_panel(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("tray") {
+        let _ = w.set_focus();
     }
 }
 
@@ -145,8 +172,10 @@ pub fn toggle_tray_panel(app: &AppHandle, click: PhysicalPosition<f64>) {
     log::debug!("tray click at {:?}, cursor anchor {:?}", (click.x, click.y), anchor);
     st.tray_ui.lock().anchor = Some(anchor);
     place_tray_panel(app, &w, None);
-    let _ = w.show();
-    let _ = w.set_focus();
+    // Like a native tray menu: don't take activation, so the hidden-icons overflow stays
+    // open until the popup closes; the watcher handles outside clicks / Esc / app switches.
+    crate::traypopup::show_without_activation(&w);
+    crate::traypopup::watch_dismiss(app);
     let _ = w.emit("tray://shown", ());
 }
 
