@@ -157,6 +157,16 @@
 .pl-node.dimmed {
   opacity: 0.55;
 }
+.pl-nhead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.pl-nhead .pl-nname {
+  flex: 1;
+  min-width: 0;
+}
 .pl-nname {
   font-size: 12.5px;
   font-weight: 500;
@@ -215,4 +225,107 @@
   font-size: 10px;
   color: var(--text-dim);
   white-space: nowrap;
+}
+
+/* ---------- node speed test ---------- */
+.pl-speed {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 17px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--teal) 16%, transparent);
+  color: var(--teal);
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+.pl-speed:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--teal) 26%, transparent);
+}
+/* not tested yet: only shown while hovering the tile */
+.pl-speed.idle {
+  opacity: 0;
+  background: rgba(127, 127, 127, 0.16);
+  color: var(--text-2);
+}
+.pl-node:hover .pl-speed.idle:not(:disabled) {
+  opacity: 1;
+}
+.pl-speed.idle:hover:not(:disabled) {
+  background: rgba(127, 127, 127, 0.26);
+}
+.pl-speed.running {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.pl-speed.running svg {
+  animation: pl-speed-bob 0.9s ease-in-out infinite;
+}
+.pl-speed.err {
+  background: color-mix(in srgb, var(--red) 14%, transparent);
+  color: var(--red);
+}
+.pl-speed:disabled {
+  cursor: default;
+}
+.pl-speed.on-accent,
+.pl-speed.on-accent.idle,
+.pl-speed.on-accent.running,
+.pl-speed.on-accent.err {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+@keyframes pl-speed-bob {
+  0%,
+  100% {
+    transform: translateY(-1px);
+  }
+  50% {
+    transform: translateY(1.5px);
+  }
+}
+.pl-nprogress {
+  position: absolute;
+  left: 9px;
+  right: 9px;
+  bottom: 3px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(127, 127, 127, 0.18);
+  overflow: hidden;
+}
+.pl-nprogress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.15s linear;
+}
+.pl-node.selected .pl-nprogress span {
+  background: #fff;
+}
+/* connecting: a short bar sweeps until data arrives */
+.pl-nprogress.waiting span {
+  width: 30% !important;
+  animation: pl-sweep 1s ease-in-out infinite;
+}
+@keyframes pl-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(340%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pl-speed.running svg,
+  .pl-nprogress.waiting span {
+    animation: none;
+  }
 }

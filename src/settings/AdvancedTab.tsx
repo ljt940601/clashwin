@@ -197,6 +197,17 @@ export default function AdvancedTab() {
           <NumberField value={s.delayTimeout} min={500} max={30000} onChange={(v) => save({ delayTimeout: v })} />
         </FormRow>
       </FormSection>
+
+      <FormSection title={t("settings.speedSection")} desc={t("settings.speedSectionDesc")}>
+        <FormRow label={t("settings.speedSize")} desc={t("settings.speedSizeDesc")}>
+          <Select<string>
+            width={120}
+            value={String(s.speedTestSizeMb)}
+            onChange={(v) => save({ speedTestSizeMb: Number(v) })}
+            options={[5, 10, 25, 50].map((n) => ({ value: String(n), label: `${n} MB` }))}
+          />
+        </FormRow>
+      </FormSection>
     </>
   );
 }

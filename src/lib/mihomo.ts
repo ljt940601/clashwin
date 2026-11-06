@@ -54,6 +54,9 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
 
 const enc = encodeURIComponent;
 
+/** Hidden group the backend uses for node speed tests (GROUP in src-tauri/src/speedtest.rs). */
+export const SPEEDTEST_GROUP = "ClashWin-SpeedTest";
+
 /** Node name -> proxy-provider name, for nodes that only exist inside a provider (filled by proxies()). */
 const providerOf = new Map<string, string>();
 
@@ -70,6 +73,9 @@ export const mihomo = {
       req<{ proxies: Record<string, ProxyItem> }>("GET", "/proxies"),
       req<{ providers: Record<string, ProxyProvider> }>("GET", "/providers/proxies").catch(() => ({ providers: {} })),
     ]);
+    // The app's own hidden speed-test group (speedtest.rs) is not for the user.
+    delete p.proxies[SPEEDTEST_GROUP];
+    for (const g of Object.values(p.proxies)) if (g.all?.includes(SPEEDTEST_GROUP)) g.all = g.all.filter((n) => n !== SPEEDTEST_GROUP);
     providerOf.clear();
     for (const prov of Object.values(pv.providers ?? {})) {
       if (prov.vehicleType === "Compatible") continue; // group-backed pseudo providers

@@ -21,6 +21,8 @@ pub struct GenInput<'a> {
     pub settings: &'a AppSettings,
     /// TUN can only be enabled when the process is elevated.
     pub tun_allowed: bool,
+    /// Local port of the node speed-test listener (see speedtest.rs); None = leave it out.
+    pub speedtest_port: Option<u16>,
 }
 
 const MINIMAL: &str = "proxies: []\nproxy-groups: []\nrules:\n  - MATCH,DIRECT\n";
@@ -160,6 +162,48 @@ pub fn generate(input: &GenInput) -> Res<Mapping> {
                 }
                 gm.insert(k("use"), Value::Sequence(uses));
             }
+        }
+    }
+
+    // ---- node speed test ----
+    // A hidden select group holding every node, reached only through its own local
+    // listener: testing a node switches this group, never the user's groups or rules.
+    if let Some(port) = input.speedtest_port {
+        let mut members = vec![vs("DIRECT")];
+        if let Some(Value::Sequence(ps)) = m.get(k("proxies")) {
+            for p in ps {
+                if let Some(n) = p.get("name").and_then(|n| n.as_str()) {
+                    if !members.iter().any(|x| x.as_str() == Some(n)) {
+                        members.push(vs(n));
+                    }
+                }
+            }
+        }
+        let uses: Vec<Value> = match m.get(k("proxy-providers")) {
+            Some(Value::Mapping(pp)) => pp.keys().cloned().collect(),
+            _ => vec![],
+        };
+        let mut g = Mapping::new();
+        set(&mut g, "name", vs(crate::speedtest::GROUP));
+        set(&mut g, "type", vs("select"));
+        set(&mut g, "proxies", Value::Sequence(members));
+        if !uses.is_empty() {
+            set(&mut g, "use", Value::Sequence(uses));
+        }
+        set(&mut g, "hidden", Value::Bool(true));
+        match m.get_mut(k("proxy-groups")) {
+            Some(Value::Sequence(groups)) => groups.push(Value::Mapping(g)),
+            _ => set(&mut m, "proxy-groups", Value::Sequence(vec![Value::Mapping(g)])),
+        }
+        let mut l = Mapping::new();
+        set(&mut l, "name", vs(crate::speedtest::LISTENER));
+        set(&mut l, "type", vs("http"));
+        set(&mut l, "port", Value::Number(port.into()));
+        set(&mut l, "listen", vs("127.0.0.1"));
+        set(&mut l, "proxy", vs(crate::speedtest::GROUP));
+        match m.get_mut(k("listeners")) {
+            Some(Value::Sequence(ls)) => ls.push(Value::Mapping(l)),
+            _ => set(&mut m, "listeners", Value::Sequence(vec![Value::Mapping(l)])),
         }
     }
 
@@ -427,7 +471,7 @@ rules:
 "#;
 
     fn gen(settings: &AppSettings, rules: Option<&[String]>, providers: &[MountedProvider], tun_allowed: bool) -> Mapping {
-        generate(&GenInput { profile_yaml: Some(PROFILE), rule_override: rules, providers, settings, tun_allowed }).unwrap()
+        generate(&GenInput { profile_yaml: Some(PROFILE), rule_override: rules, providers, settings, tun_allowed, speedtest_port: None }).unwrap()
     }
 
     #[test]
@@ -492,7 +536,7 @@ rules:
     #[test]
     fn minimal_when_no_profile() {
         let s = AppSettings::default();
-        let m = generate(&GenInput { profile_yaml: None, rule_override: None, providers: &[], settings: &s, tun_allowed: false }).unwrap();
+        let m = generate(&GenInput { profile_yaml: None, rule_override: None, providers: &[], settings: &s, tun_allowed: false, speedtest_port: None }).unwrap();
         assert_eq!(rules_of(&m), vec!["MATCH,DIRECT".to_string()]);
         assert!(to_yaml(&m).unwrap().contains("external-controller"));
     }
@@ -511,6 +555,42 @@ rules:
         let m = parse_profile(y).unwrap();
         assert_eq!(m["proxies"][0]["type"], vs("ss"));
     }
+
+    #[test]
+    fn speedtest_group_and_listener() {
+        let s = AppSettings::default();
+        let providers = vec![MountedProvider { id: "p2".into(), name: "Backup".into(), url: "https://sub.example/x".into() }];
+        let m = generate(&GenInput {
+            profile_yaml: Some(PROFILE),
+            rule_override: None,
+            providers: &providers,
+            settings: &s,
+            tun_allowed: false,
+            speedtest_port: Some(27890),
+        })
+        .unwrap();
+        let groups = m["proxy-groups"].as_sequence().unwrap();
+        let g = groups.iter().find(|g| g["name"] == vs(crate::speedtest::GROUP)).expect("speed-test group");
+        assert_eq!(g["type"], vs("select"));
+        assert_eq!(g["hidden"], Value::Bool(true));
+        let members: Vec<&str> = g["proxies"].as_sequence().unwrap().iter().filter_map(|v| v.as_str()).collect();
+        assert_eq!(members[0], "DIRECT");
+        let profile_proxies: Vec<String> = m["proxies"].as_sequence().unwrap().iter().filter_map(|p| p["name"].as_str().map(String::from)).collect();
+        assert!(!profile_proxies.is_empty());
+        for n in &profile_proxies {
+            assert!(members.contains(&n.as_str()), "{n} missing from the speed-test group");
+        }
+        assert!(g["use"].as_sequence().unwrap().iter().any(|u| u.as_str() == Some("cw-p2")));
+        let l = &m["listeners"].as_sequence().unwrap()[0];
+        assert_eq!(l["name"], vs(crate::speedtest::LISTENER));
+        assert_eq!(l["port"], Value::Number(27890.into()));
+        assert_eq!(l["listen"], vs("127.0.0.1"));
+        assert_eq!(l["proxy"], vs(crate::speedtest::GROUP));
+        // no port, no extras
+        let plain = gen(&s, None, &[], false);
+        assert!(plain.get("listeners").is_none());
+        assert!(!plain["proxy-groups"].as_sequence().unwrap().iter().any(|g| g["name"] == vs(crate::speedtest::GROUP)));
+    }
 }
 
 #[cfg(test)]
@@ -521,7 +601,7 @@ mod print {
         let mut s = crate::settings::AppSettings::default();
         s.controller.secret = "s3cret".into();
         s.tun_mode = true;
-        let m = super::generate(&super::GenInput { profile_yaml: Some("proxies:\n  - {name: HK, type: ss, server: a, port: 1, cipher: aes-128-gcm, password: x}\nproxy-groups:\n  - {name: Proxy, type: select, proxies: [HK]}\nrules:\n  - MATCH,Proxy\n"), rule_override: None, providers: &[], settings: &s, tun_allowed: true }).unwrap();
+        let m = super::generate(&super::GenInput { profile_yaml: Some("proxies:\n  - {name: HK, type: ss, server: a, port: 1, cipher: aes-128-gcm, password: x}\nproxy-groups:\n  - {name: Proxy, type: select, proxies: [HK]}\nrules:\n  - MATCH,Proxy\n"), rule_override: None, providers: &[], settings: &s, tun_allowed: true, speedtest_port: None }).unwrap();
         println!("{}", super::to_yaml(&m).unwrap());
     }
 }

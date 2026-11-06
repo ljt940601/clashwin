@@ -655,6 +655,20 @@ pub async fn core_log_tail(app: AppHandle, lines: usize) -> Res<Vec<String>> {
     Ok(state(&app).core.log_tail(lines.min(2000)))
 }
 
+/* ======================= Node speed test ======================= */
+
+/// Download speed through one node (one test at a time; progress via speedtest://progress).
+#[tauri::command]
+pub async fn speed_test(app: AppHandle, node: String) -> Res<crate::speedtest::SpeedResult> {
+    crate::speedtest::run(&app, &node).await
+}
+
+#[tauri::command]
+pub async fn speed_test_cancel() -> Res<()> {
+    crate::speedtest::cancel();
+    Ok(())
+}
+
 /* ======================= Helper ======================= */
 
 #[derive(Serialize)]

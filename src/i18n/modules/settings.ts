@@ -147,6 +147,10 @@ const dict: ModuleDict = {
     delaySection: "延迟测试",
     delayUrl: "测试地址",
     delayTimeout: "超时（毫秒）",
+    speedSection: "节点测速",
+    speedSectionDesc: "在「策略」页把鼠标移到节点上点「测速」，或右键节点选「下载测速」。测速文件来自 speed.cloudflare.com，每次只测一个节点，消耗的流量计入该节点的用量。",
+    speedSize: "每次测速的数据量",
+    speedSizeDesc: "下载满这个量，或 10 秒到了就停止。数据量越大结果越准，流量也越多。",
 
     // About
     tagline: "基于 mihomo 内核的 Windows 代理客户端",
@@ -345,6 +349,10 @@ const dict: ModuleDict = {
     delaySection: "Latency Test",
     delayUrl: "Test URL",
     delayTimeout: "Timeout (ms)",
+    speedSection: "Node Speed Test",
+    speedSectionDesc: "On the Policy page, hover a node and click Speed, or right-click it and choose Test Download Speed. The test file comes from speed.cloudflare.com; one node is tested at a time and the data counts toward that node's usage.",
+    speedSize: "Data per Test",
+    speedSizeDesc: "The test stops after this much data or 10 seconds. More data gives a steadier result but uses more traffic.",
 
     tagline: "A Windows proxy client powered by the mihomo kernel",
     version: "Version {v} ({b})",

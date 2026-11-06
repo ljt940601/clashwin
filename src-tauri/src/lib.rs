@@ -9,6 +9,7 @@ pub mod geo;
 pub mod nodegeo;
 pub mod profiles;
 pub mod settings;
+pub mod speedtest;
 pub mod state;
 pub mod stats;
 pub mod sysproxy;
@@ -127,6 +128,8 @@ pub fn run() {
             cmds::core_rollback,
             cmds::core_delete_cached,
             cmds::core_log_tail,
+            cmds::speed_test,
+            cmds::speed_test_cancel,
             // helper
             cmds::helper_status,
             cmds::helper_install,
