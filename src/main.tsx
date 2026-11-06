@@ -5,6 +5,8 @@ import { polyfillCountryFlagEmojis } from "country-flag-emoji-polyfill";
 import flagFontUrl from "country-flag-emoji-polyfill/dist/TwemojiCountryFlags.woff2?url";
 import "./styles/base.css";
 import "./components/layout/layout.css";
+import "./styles/motion.css";
+import logo from "./assets/logo.svg";
 import { DialogHost, MenuHost, ToastHost } from "./components/ui";
 import { Sidebar } from "./components/layout/Sidebar";
 import { useApp } from "./lib/store";
@@ -54,8 +56,14 @@ function NavigateListener() {
 }
 
 function Dashboard() {
+  // the first appearance gets a fuller entrance than later page changes
+  const [entering, setEntering] = React.useState(true);
+  React.useEffect(() => {
+    const id = window.setTimeout(() => setEntering(false), 700);
+    return () => window.clearTimeout(id);
+  }, []);
   return (
-    <div className="app-shell">
+    <div className={entering ? "app-shell enter" : "app-shell"}>
       <NavigateListener />
       <Sidebar />
       <Routes>
@@ -95,7 +103,14 @@ function Root() {
     window.addEventListener("contextmenu", onCtx);
     return () => window.removeEventListener("contextmenu", onCtx);
   }, []);
-  if (!ready) return null;
+  // Tray popup: nothing until ready (it's hidden anyway). Other windows: a logo that only
+  // fades in if loading takes a moment.
+  if (!ready)
+    return windowKind === "tray" ? null : (
+      <div className="boot">
+        <img src={logo} alt="" draggable={false} />
+      </div>
+    );
   return (
     <HashRouter>
       {windowKind === "tray" ? <TrayPanel /> : windowKind === "settings" ? <SettingsApp /> : <Dashboard />}

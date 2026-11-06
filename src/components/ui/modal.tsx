@@ -6,6 +6,7 @@ import { Button, TextField } from "./basic";
 import { t } from "@/i18n";
 
 /* ---------- Modal ---------- */
+const MODAL_OUT_MS = 150; // matches .ui-modal-backdrop.closing in motion.css
 export function Modal({
   open,
   onClose,
@@ -31,14 +32,32 @@ export function Modal({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
-  if (!open) return null;
+
+  // Fade out when `open` turns false, showing the last content meanwhile (callers often
+  // clear the data the content was built from at the same moment).
+  const last = React.useRef({ title, desc, children, footer, width });
+  if (open) last.current = { title, desc, children, footer, width };
+  const [closing, setClosing] = React.useState(false);
+  const wasOpen = React.useRef(open);
+  React.useEffect(() => {
+    if (wasOpen.current && !open) {
+      setClosing(true);
+      const id = window.setTimeout(() => setClosing(false), MODAL_OUT_MS);
+      wasOpen.current = open;
+      return () => window.clearTimeout(id);
+    }
+    wasOpen.current = open;
+    if (open) setClosing(false);
+  }, [open]);
+  if (!open && !closing) return null;
+  const c = open ? { title, desc, children, footer, width } : last.current;
   return createPortal(
-    <div className="ui-modal-backdrop" onMouseDown={() => closeOnBackdrop && onClose()}>
-      <div className="ui-modal" style={{ width }} onMouseDown={(e) => e.stopPropagation()}>
-        {title && <div className="ui-modal-head">{title}</div>}
-        {desc && <div className="ui-modal-desc">{desc}</div>}
-        {children && <div className="ui-modal-body">{children}</div>}
-        {footer && <div className="ui-modal-foot">{footer}</div>}
+    <div className={open ? "ui-modal-backdrop" : "ui-modal-backdrop closing"} onMouseDown={() => open && closeOnBackdrop && onClose()}>
+      <div className="ui-modal" style={{ width: c.width }} onMouseDown={(e) => e.stopPropagation()}>
+        {c.title && <div className="ui-modal-head">{c.title}</div>}
+        {c.desc && <div className="ui-modal-desc">{c.desc}</div>}
+        {c.children && <div className="ui-modal-body">{c.children}</div>}
+        {c.footer && <div className="ui-modal-foot">{c.footer}</div>}
       </div>
     </div>,
     document.body,
@@ -129,16 +148,26 @@ interface ToastItem {
   id: number;
   kind: ToastKind;
   message: React.ReactNode;
+  leaving?: boolean;
 }
-const useToastStore = create<{ items: ToastItem[]; add: (t: ToastItem) => void; remove: (id: number) => void }>((set) => ({
+const TOAST_OUT_MS = 200; // matches .ui-toast.leaving in motion.css
+const useToastStore = create<{
+  items: ToastItem[];
+  add: (t: ToastItem) => void;
+  leave: (id: number) => void;
+  remove: (id: number) => void;
+}>((set) => ({
   items: [],
   add: (t) => set((s) => ({ items: [...s.items.slice(-3), t] })),
+  leave: (id) => set((s) => ({ items: s.items.map((x) => (x.id === id ? { ...x, leaving: true } : x)) })),
   remove: (id) => set((s) => ({ items: s.items.filter((x) => x.id !== id) })),
 }));
 let toastSeq = 0;
 function pushToast(kind: ToastKind, message: React.ReactNode, ms = 2600) {
   const id = ++toastSeq;
   useToastStore.getState().add({ id, kind, message });
+  // fade out, then remove
+  window.setTimeout(() => useToastStore.getState().leave(id), ms - TOAST_OUT_MS);
   window.setTimeout(() => useToastStore.getState().remove(id), ms);
 }
 export const toast = {
@@ -161,7 +190,7 @@ export function ToastHost() {
   return createPortal(
     <div className="ui-toasts">
       {items.map((t) => (
-        <div key={t.id} className="ui-toast">
+        <div key={t.id} className={t.leaving ? "ui-toast leaving" : "ui-toast"}>
           {toastIcon[t.kind]}
           <span>{t.message}</span>
         </div>

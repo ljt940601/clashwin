@@ -38,8 +38,25 @@ const emptyCore: CoreStatus = { state: "stopped", controller: { url: "http://127
 
 function applyTheme(theme: AppSettings["theme"]) {
   const dark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  const next = dark ? "dark" : "light";
+  const root = document.documentElement;
+  if (themeApplied && root.dataset.theme !== next) {
+    // cross-fade colours instead of snapping (class removed once the fade is done)
+    root.classList.add("theme-anim");
+    window.clearTimeout(themeTimer);
+    themeTimer = window.setTimeout(() => root.classList.remove("theme-anim"), 400);
+  }
+  root.dataset.theme = next;
+  root.style.background = ""; // set by index.html for the first paint
+  themeApplied = true;
+  try {
+    localStorage.setItem("clashwin.theme", next); // read by index.html on the next launch
+  } catch {
+    /* storage unavailable */
+  }
 }
+let themeApplied = false;
+let themeTimer: number | undefined;
 
 function applyLanguage(language: AppSettings["language"]) {
   useLang.getState().setLang(language === "system" ? systemLang() : language);

@@ -28,7 +28,7 @@ export function Page({
     <div className="main">
       <div className="toolbar" data-tauri-drag-region>
         <div className="toolbar-left" data-tauri-drag-region>
-          {collapsed && <SidebarToggle />}
+          {collapsed && <SidebarToggle className="in-toolbar" />}
           <div className="toolbar-title" data-tauri-drag-region>
             {title}
           </div>

@@ -9,6 +9,13 @@ import { formatAgo, formatCount } from "@/lib/format";
 import type { ExternalResource, Profile } from "@/lib/types";
 import { safeHost } from "./utils";
 
+/** Last non-null value: a closing dialog keeps showing it while it fades out. */
+function useLatest<T>(v: T | null): T | null {
+  const r = React.useRef(v);
+  if (v) r.current = v;
+  return r.current;
+}
+
 /* ---------------- Import subscription ---------------- */
 
 export function ImportDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -87,8 +94,9 @@ export function ImportDialog({ open, onClose }: { open: boolean; onClose: () => 
 
 /* ---------------- Edit info ---------------- */
 
-export function EditInfoDialog({ profile, onClose }: { profile: Profile | null; onClose: () => void }) {
+export function EditInfoDialog({ profile: target, onClose }: { profile: Profile | null; onClose: () => void }) {
   const t = useT();
+  const profile = useLatest(target);
   const [name, setName] = React.useState("");
   const [url, setUrl] = React.useState("");
   const [interval, setIntervalMin] = React.useState(0);
@@ -96,12 +104,12 @@ export function EditInfoDialog({ profile, onClose }: { profile: Profile | null; 
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    if (!profile) return;
-    setName(profile.name);
-    setUrl(profile.url ?? "");
-    setIntervalMin(profile.autoUpdateMinutes ?? 0);
+    if (!target) return;
+    setName(target.name);
+    setUrl(target.url ?? "");
+    setIntervalMin(target.autoUpdateMinutes ?? 0);
     setError(null);
-  }, [profile]);
+  }, [target]);
 
   if (!profile) return null;
   const remote = profile.type === "remote";
@@ -124,7 +132,7 @@ export function EditInfoDialog({ profile, onClose }: { profile: Profile | null; 
 
   return (
     <Modal
-      open
+      open={!!target}
       onClose={onClose}
       width={480}
       title={t("profiles.editInfoTitle")}
@@ -160,13 +168,14 @@ export function EditInfoDialog({ profile, onClose }: { profile: Profile | null; 
 
 /* ---------------- Mount proxy providers ---------------- */
 
-export function MountDialog({ profile, profiles, onClose }: { profile: Profile | null; profiles: Profile[]; onClose: () => void }) {
+export function MountDialog({ profile: target, profiles, onClose }: { profile: Profile | null; profiles: Profile[]; onClose: () => void }) {
   const t = useT();
+  const profile = useLatest(target);
   const [sel, setSel] = React.useState<Set<string>>(new Set());
   const [busy, setBusy] = React.useState(false);
   React.useEffect(() => {
-    if (profile) setSel(new Set(profile.providers ?? []));
-  }, [profile]);
+    if (target) setSel(new Set(target.providers ?? []));
+  }, [target]);
   if (!profile) return null;
   const others = profiles.filter((p) => p.type === "remote" && p.id !== profile.id);
 
@@ -184,7 +193,7 @@ export function MountDialog({ profile, profiles, onClose }: { profile: Profile |
 
   return (
     <Modal
-      open
+      open={!!target}
       onClose={onClose}
       width={460}
       title={t("profiles.mountTitle")}
@@ -324,8 +333,9 @@ export function ExternalDialog({ open, onClose }: { open: boolean; onClose: () =
 
 /* ---------------- In-app YAML editor ---------------- */
 
-export function EditorDialog({ profile, onClose }: { profile: Profile | null; onClose: () => void }) {
+export function EditorDialog({ profile: target, onClose }: { profile: Profile | null; onClose: () => void }) {
   const t = useT();
+  const profile = useLatest(target);
   const editorRef = React.useRef<YamlEditorHandle>(null);
   const [text, setText] = React.useState<string | null>(null);
   const [saved, setSaved] = React.useState<string | null>(null);
@@ -333,12 +343,12 @@ export function EditorDialog({ profile, onClose }: { profile: Profile | null; on
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    if (!profile) return;
+    if (!target) return;
     setText(null);
     setSaved(null);
     setError(null);
     backend
-      .readProfile(profile.id)
+      .readProfile(target.id)
       .then((s) => {
         setText(s);
         setSaved(s);
@@ -348,7 +358,7 @@ export function EditorDialog({ profile, onClose }: { profile: Profile | null; on
         setSaved("");
         setError(errorMessage(e));
       });
-  }, [profile]);
+  }, [target]);
 
   const errLine = error ? errorLine(error) : null;
   const dirty = text !== null && text !== saved;
@@ -389,7 +399,7 @@ export function EditorDialog({ profile, onClose }: { profile: Profile | null; on
 
   return (
     <Modal
-      open
+      open={!!target}
       onClose={tryClose}
       closeOnBackdrop={false}
       width={900}

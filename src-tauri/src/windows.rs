@@ -2,6 +2,7 @@
 
 use serde::Serialize;
 use std::time::Instant;
+use tauri::window::Color;
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
 
 use crate::admin;
@@ -10,6 +11,25 @@ use crate::state::state;
 #[derive(Clone, Serialize)]
 struct NavigatePayload {
     page: String,
+}
+
+/// Is the UI dark? Follows the app's theme setting, or Windows' app theme for "system".
+fn ui_is_dark(app: &AppHandle) -> bool {
+    match state(app).settings.read().theme.as_str() {
+        "dark" => true,
+        "light" => false,
+        _ => crate::winutil::system_prefers_dark(),
+    }
+}
+
+/// Window background shown before the page paints (matches --bg-window), so a dark
+/// window doesn't flash white while it loads.
+fn window_bg(app: &AppHandle) -> Color {
+    if ui_is_dark(app) {
+        Color(0x1e, 0x1f, 0x21, 0xff)
+    } else {
+        Color(0xf5, 0xf5, 0xf7, 0xff)
+    }
 }
 
 pub fn create_main(app: &AppHandle, visible: bool) -> tauri::Result<WebviewWindow> {
@@ -33,6 +53,7 @@ pub fn create_main_restored(app: &AppHandle, visible: bool, restore: Option<&adm
         .title("ClashWin")
         .inner_size(1240.0, 800.0)
         .min_inner_size(960.0, 620.0)
+        .background_color(window_bg(app))
         .decorations(false)
         .shadow(true)
         .resizable(true)
@@ -102,6 +123,7 @@ pub fn open_settings(app: &AppHandle, tab: Option<String>) -> tauri::Result<()> 
     let w = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App(format!("index.html#/settings/{tab}").into()))
         .title("ClashWin Settings")
         .inner_size(680.0, 560.0)
+        .background_color(window_bg(app))
         .decorations(false)
         .shadow(true)
         .resizable(false)
