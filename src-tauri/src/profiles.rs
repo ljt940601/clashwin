@@ -149,7 +149,7 @@ pub struct Fetched {
     pub name: Option<String>,
 }
 
-pub const SUB_USER_AGENT: &str = "clash.meta/v1.19 ClashWin/0.1.0 mihomo";
+pub const SUB_USER_AGENT: &str = concat!("clash.meta/v1.19 ClashWin/", env!("CARGO_PKG_VERSION"), " mihomo");
 
 /// Download a subscription. `proxy` routes through the running core when the direct attempt fails.
 pub async fn fetch(url: &str, proxy: Option<&str>) -> Res<Fetched> {

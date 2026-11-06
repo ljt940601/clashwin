@@ -1,7 +1,7 @@
 # Builds the Windows installer and publishes it to GitHub Releases.
 # Run it from the Actions tab ("Run workflow"), or push a tag like v0.1.1.
 # The release is tagged v<version> from src-tauri/tauri.conf.json; running it again for the
-# same version replaces that release's installer.
+# same version replaces that release's installer. Notes come from .github/release-notes/v<version>.md.
 # Uses only GitHub's own actions and the tools preinstalled on windows-latest (Rust, gh).
 name: Release
 
@@ -55,9 +55,16 @@ jobs:
           tag="v$version"
           file=$(ls src-tauri/target/release/bundle/nsis/*-setup.exe)
           echo "Publishing $file as $tag"
+          # Release notes (shown in the app's update center) come from .github/release-notes/<tag>.md
+          notes_file=".github/release-notes/$tag.md"
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" "$file" --clobber
+            # keep notes edited on GitHub unless the repo has a notes file for this version
+            if [ -f "$notes_file" ]; then gh release edit "$tag" --notes-file "$notes_file"; fi
           else
-            gh release create "$tag" "$file" --target "$GITHUB_SHA" --title "ClashWin $tag" \
-              --notes "下载下面的 ClashWin_${version}_x64-setup.exe 安装即可（Windows 10/11 x64）。"
+            if [ ! -f "$notes_file" ]; then
+              notes_file="release-notes.tmp.md"
+              echo "下载下面的 ClashWin_${version}_x64-setup.exe 安装即可（Windows 10/11 x64）。" > "$notes_file"
+            fi
+            gh release create "$tag" "$file" --target "$GITHUB_SHA" --title "ClashWin $tag" --notes-file "$notes_file"
           fi
