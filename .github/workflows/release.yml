@@ -43,6 +43,11 @@ jobs:
 
       - run: npm ci
 
+      # The Rust cache restores src-tauri/target, including installers from earlier versions.
+      - name: Remove old installers
+        shell: bash
+        run: rm -rf src-tauri/target/release/bundle
+
       - name: Build installer
         run: npx tauri build --bundles nsis
 
@@ -53,7 +58,12 @@ jobs:
         run: |
           version=$(node -p "require('./src-tauri/tauri.conf.json').version")
           tag="v$version"
-          file=$(ls src-tauri/target/release/bundle/nsis/*-setup.exe)
+          file="src-tauri/target/release/bundle/nsis/ClashWin_${version}_x64-setup.exe"
+          if [ ! -f "$file" ]; then
+            echo "Installer not found: $file"
+            ls src-tauri/target/release/bundle/nsis/ || true
+            exit 1
+          fi
           echo "Publishing $file as $tag"
           # Release notes (shown in the app's update center) come from .github/release-notes/<tag>.md
           notes_file=".github/release-notes/$tag.md"
