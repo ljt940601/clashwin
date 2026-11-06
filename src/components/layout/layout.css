@@ -24,37 +24,63 @@
   height: var(--toolbar-height);
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  gap: 8px;
   flex-shrink: 0;
-  padding: 0 2px;
+  padding: 0 0 0 4px;
+  margin-bottom: 4px;
+}
+.sidebar-logo {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  flex-shrink: 0;
 }
 .sidebar-brand {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 0 2px 10px;
-}
-.sidebar-brand img,
-.sidebar-brand .brand-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  flex-shrink: 0;
+  flex: 1;
+  min-width: 0;
 }
 .sidebar-brand-name {
   font-size: 12.5px;
   font-weight: 600;
   color: var(--text);
   line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .sidebar-brand-sub {
   font-size: 10px;
   color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.ui-iconbtn.sidebar-toggle {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  color: var(--text-2);
+}
+.ui-iconbtn.sidebar-toggle.in-toolbar {
+  margin-left: -8px;
+  animation: fade-in 0.2s 0.08s ease-out both;
 }
 .sidebar-nav {
+  position: relative;
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
+}
+/* sliding highlight behind the active item */
+.sidebar-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  border-radius: 7px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.sidebar-indicator.animated {
+  transition: transform 0.28s cubic-bezier(0.3, 0.9, 0.3, 1), height 0.28s;
 }
 .sidebar-section {
   font-size: 10.5px;
@@ -63,6 +89,7 @@
   font-weight: 500;
 }
 .sidebar-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -74,11 +101,12 @@
   font-weight: 500;
   color: var(--text-1);
   text-decoration: none;
-  transition: background 0.1s;
+  transition: background 0.12s, color 0.2s;
 }
 .sidebar-item svg {
   color: var(--accent);
   flex-shrink: 0;
+  transition: color 0.2s;
 }
 .sidebar-item:hover:not(.active) {
   background: rgba(127, 127, 127, 0.1);
@@ -86,6 +114,9 @@
 .sidebar-item.active {
   background: var(--accent);
   color: #fff;
+}
+.sidebar-nav.has-indicator .sidebar-item.active {
+  background: transparent;
 }
 .sidebar-item.active svg {
   color: #fff;
@@ -108,12 +139,28 @@
   height: 5px;
   border-radius: 50%;
   background: var(--text-faint);
+  transition: background 0.3s, box-shadow 0.3s;
 }
 .sidebar-status-dot.on {
-  background: var(--green-dim);
+  background: var(--green);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--green) 22%, transparent);
 }
 .sidebar-status-dot.err {
   background: var(--red);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--red) 22%, transparent);
+}
+.sidebar-status-dot.busy {
+  background: var(--orange);
+  animation: dot-pulse 1s ease-in-out infinite;
+}
+@keyframes dot-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--orange) 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--orange) 0%, transparent);
+  }
 }
 
 /* ---------- Main + toolbar ---------- */
@@ -214,4 +261,83 @@
 }
 .tb-profile:hover {
   background: var(--bg-control-hover);
+}
+
+/* ---------- Toolbar switches (system proxy / enhanced mode / core) ---------- */
+.ui-iconbtn.tb-switch {
+  position: relative;
+  transition: background 0.25s, color 0.25s;
+}
+.tb-switch-icon {
+  display: inline-flex;
+  transition: opacity 0.2s;
+}
+.tb-switch-icon.pop {
+  animation: icon-pop 0.34s cubic-bezier(0.3, 1.45, 0.6, 1) both;
+}
+.tb-switch.sysproxy.on {
+  color: var(--blue);
+  background: color-mix(in srgb, var(--blue) 18%, var(--bg-control));
+}
+.tb-switch.tun svg {
+  fill-opacity: 0;
+  transition: fill-opacity 0.3s;
+}
+.tb-switch.tun.on {
+  color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 17%, var(--bg-control));
+}
+.tb-switch.tun.on svg {
+  fill-opacity: 0.35;
+}
+.tb-switch.core {
+  color: var(--green);
+}
+.tb-switch.core.on {
+  color: var(--text-1);
+}
+/* busy: the icon dims and a ring spins around the button */
+.tb-switch.busy .tb-switch-icon {
+  opacity: 0.45;
+}
+.tb-switch.busy::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  animation: spin 0.8s linear infinite;
+  pointer-events: none;
+}
+.tb-ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  pointer-events: none;
+  animation: tb-ripple 0.65s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+.tb-switch.core .tb-ripple {
+  border-color: var(--green);
+}
+@keyframes tb-ripple {
+  from {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+@keyframes icon-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.5) rotate(-30deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }

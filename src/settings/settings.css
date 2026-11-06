@@ -77,7 +77,7 @@
 .st-content {
   max-width: 580px;
   margin: 0 auto;
-  animation: fade-in 0.15s ease-out;
+  animation: page-in 0.26s var(--ease-out) both;
 }
 .st-intro {
   display: flex;

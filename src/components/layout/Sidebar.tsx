@@ -1,4 +1,5 @@
-import { NavLink } from "react-router-dom";
+import React from "react";
+import { NavLink, useLocation } from "react-router-dom";
 import {
   Crosshair,
   FileText,
@@ -46,21 +47,39 @@ export const NAV = [
   },
 ];
 
-export function SidebarToggle() {
+export function SidebarToggle({ className }: { className?: string }) {
   const t = useT();
   const collapsed = useApp((s) => s.settings?.sidebarCollapsed ?? false);
   const save = useApp((s) => s.saveSettings);
   return (
     <IconButton
-      icon={<PanelLeft size={16} />}
+      icon={<PanelLeft size={16} strokeWidth={1.8} />}
       title={t("nav.toggleSidebar")}
-      size="sm"
-      square
       variant="plain"
-      style={{ width: 30, height: 30, borderRadius: "50%", background: "var(--bg-control)" }}
+      className={cx("sidebar-toggle", className)}
       onClick={() => save({ sidebarCollapsed: !collapsed })}
     />
   );
+}
+
+/** Accent pill that slides to the active page instead of jumping. */
+function useNavIndicator(navRef: React.RefObject<HTMLElement>) {
+  const location = useLocation();
+  const [box, setBox] = React.useState<{ top: number; height: number } | null>(null);
+  const [animated, setAnimated] = React.useState(false);
+  React.useLayoutEffect(() => {
+    const nav = navRef.current;
+    const el = nav?.querySelector<HTMLElement>(".sidebar-item.active");
+    setBox(el ? { top: el.offsetTop, height: el.offsetHeight } : null);
+  }, [location.pathname, navRef]);
+  React.useEffect(() => {
+    // no slide for the first placement
+    if (box && !animated) {
+      const id = requestAnimationFrame(() => setAnimated(true));
+      return () => cancelAnimationFrame(id);
+    }
+  }, [box, animated]);
+  return { box, animated };
 }
 
 export function Sidebar() {
@@ -71,21 +90,32 @@ export function Sidebar() {
   const core = useApp((s) => s.core);
   const running = core.state === "running";
 
+  const navRef = React.useRef<HTMLElement>(null);
+  const indicator = useNavIndicator(navRef);
+  const busy = useApp((s) => s.busy);
+
   return (
     <aside className={cx("sidebar", collapsed && "collapsed")}>
+      {/* Windows has no traffic lights here: the brand sits in the title-bar row */}
       <div className="sidebar-top" data-tauri-drag-region>
-        <SidebarToggle />
-      </div>
-      <div className="sidebar-brand" data-tauri-drag-region>
-        <img src={logo} alt="" draggable={false} />
-        <div style={{ minWidth: 0 }}>
-          <div className="sidebar-brand-name">{info?.name ?? "ClashWin"}</div>
-          <div className="sidebar-brand-sub">
-            {info ? `v${info.version} (${info.build})` : "—"}
+        <img className="sidebar-logo" src={logo} alt="" draggable={false} data-tauri-drag-region />
+        <div className="sidebar-brand" data-tauri-drag-region>
+          <div className="sidebar-brand-name" data-tauri-drag-region>
+            {info?.name ?? "ClashWin"}
+          </div>
+          <div className="sidebar-brand-sub" data-tauri-drag-region>
+            {info ? `v${info.version}` : "—"}
           </div>
         </div>
+        <SidebarToggle />
       </div>
-      <nav className="sidebar-nav">
+      <nav className={cx("sidebar-nav", indicator.box && "has-indicator")} ref={navRef}>
+        {indicator.box && (
+          <span
+            className={cx("sidebar-indicator", indicator.animated && "animated")}
+            style={{ transform: `translateY(${indicator.box.top}px)`, height: indicator.box.height }}
+          />
+        )}
         {NAV.map((g, gi) => (
           <div key={gi}>
             {g.section && <div className="sidebar-section">{t(`nav.${g.section}`)}</div>}
@@ -100,15 +130,22 @@ export function Sidebar() {
       </nav>
       <div className="sidebar-status">
         <div className="sidebar-status-row">
-          <span className={cx("sidebar-status-dot", settings?.systemProxy && "on")} />
+          <span className={cx("sidebar-status-dot", settings?.systemProxy && "on", busy.sysproxy && "busy")} />
           {t("common.systemProxy")}
         </div>
         <div className="sidebar-status-row">
-          <span className={cx("sidebar-status-dot", settings?.tunMode && "on")} />
+          <span className={cx("sidebar-status-dot", settings?.tunMode && "on", busy.tun && "busy")} />
           {t("common.enhancedMode")}
         </div>
         <div className="sidebar-status-row">
-          <span className={cx("sidebar-status-dot", running && "on", core.state === "error" && "err")} />
+          <span
+            className={cx(
+              "sidebar-status-dot",
+              running && "on",
+              core.state === "error" && "err",
+              (busy.core || core.state === "starting" || core.state === "downloading") && "busy",
+            )}
+          />
           {t("common.kernel")} {core.version ?? t(`common.${core.state === "not_installed" ? "notInstalled" : "stopped"}`)}
         </div>
       </div>

@@ -276,7 +276,7 @@ export default function OverviewPage() {
 
   return (
     <Page title={t(greeting)} actions={<StandardActions />}>
-      <div className="ov-root">
+      <div className="ov-root stagger">
         <SummaryBar s={summary} />
 
         <TrafficTrend />

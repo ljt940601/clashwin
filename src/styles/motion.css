@@ -1,0 +1,188 @@
+/* App-wide motion: startup, page changes, list entrances, toasts, theme changes.
+   Everything here uses opacity/transform only and is turned off for reduced motion. */
+
+:root {
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes boot-logo {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes boot-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+}
+
+/* ---------- startup ---------- */
+/* Shown only if loading takes a moment (the delay keeps quick starts from flashing it). */
+.boot {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.boot img {
+  width: 64px;
+  height: 64px;
+  border-radius: 15px;
+  filter: drop-shadow(0 10px 24px rgba(80, 70, 240, 0.35));
+  opacity: 0;
+  animation: boot-logo 0.35s 0.2s var(--ease-out) forwards, boot-breathe 1.6s 0.55s ease-in-out infinite;
+}
+
+/* first appearance of the dashboard: sidebar slides in, content rises */
+.app-shell.enter .sidebar {
+  animation: slide-in-left 0.42s var(--ease-out) both;
+}
+.app-shell.enter .toolbar {
+  animation: fade-in 0.4s 0.05s ease-out both;
+}
+
+/* ---------- page changes ---------- */
+.page-body {
+  animation: page-in 0.28s var(--ease-out) both;
+}
+/* tables and the map lay themselves out from their size: fade only */
+.page-body.flush {
+  animation-name: fade-in;
+  animation-duration: 0.22s;
+}
+.toolbar-title {
+  animation: fade-in 0.25s ease-out both;
+}
+
+/* cards come in one after another */
+.stagger > * {
+  animation: rise-in 0.4s var(--ease-out) both;
+}
+.stagger > :nth-child(2) { animation-delay: 30ms; }
+.stagger > :nth-child(3) { animation-delay: 60ms; }
+.stagger > :nth-child(4) { animation-delay: 90ms; }
+.stagger > :nth-child(5) { animation-delay: 120ms; }
+.stagger > :nth-child(6) { animation-delay: 150ms; }
+.stagger > :nth-child(7) { animation-delay: 180ms; }
+.stagger > :nth-child(8) { animation-delay: 210ms; }
+.stagger > :nth-child(n + 9) { animation-delay: 240ms; }
+/* the stagger replaces the page fade where it's used */
+.page-body:has(> .stagger) {
+  animation: none;
+}
+
+/* ---------- modals: fade out on close ---------- */
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes pop-out {
+  to {
+    opacity: 0;
+    transform: scale(0.97) translateY(4px);
+  }
+}
+.ui-modal-backdrop.closing {
+  pointer-events: none;
+  animation: fade-out 0.15s ease-in forwards;
+}
+.ui-modal-backdrop.closing .ui-modal {
+  animation: pop-out 0.15s ease-in forwards;
+}
+
+/* ---------- toasts ---------- */
+.ui-toast.leaving {
+  animation: toast-out 0.2s ease-in forwards;
+}
+
+/* ---------- theme switch: colours cross-fade (class set for ~0.4s by the store) ---------- */
+html.theme-anim,
+html.theme-anim *,
+html.theme-anim *::before,
+html.theme-anim *::after {
+  transition: background-color 0.35s ease, border-color 0.35s ease, color 0.35s ease, fill 0.35s ease, stroke 0.35s ease,
+    box-shadow 0.35s ease !important;
+}
+
+/* ---------- reduced motion (Windows: Settings → Accessibility → Visual effects) ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .boot img,
+  .app-shell.enter .sidebar,
+  .app-shell.enter .toolbar,
+  .page-body,
+  .toolbar-title,
+  .st-content,
+  .stagger > *,
+  .tb-switch-icon.pop,
+  .tb-ripple,
+  .ui-toast,
+  .ui-toast.leaving,
+  .ui-modal,
+  .ui-modal-backdrop,
+  .ui-modal-backdrop.closing,
+  .ui-modal-backdrop.closing .ui-modal {
+    animation: none !important;
+  }
+  .boot img {
+    opacity: 1;
+  }
+  .ui-toast.leaving {
+    opacity: 0;
+  }
+  .ui-seg-thumb,
+  .sidebar-indicator,
+  .ui-toggle,
+  .ui-toggle::after,
+  .sidebar,
+  html.theme-anim * {
+    transition: none !important;
+  }
+}

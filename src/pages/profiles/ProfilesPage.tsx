@@ -340,7 +340,7 @@ export default function ProfilesPage() {
   );
 
   const renderGrid = (list: Profile[]) => (
-    <div className="pf-grid">
+    <div className="pf-grid stagger">
       {list.map((p) => (
         <ProfileCard
           key={p.id}

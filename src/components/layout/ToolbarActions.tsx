@@ -2,10 +2,11 @@
  * Toolbar controls shared by several pages (Overview, Policy, ...):
  * profile switcher, outbound mode, system proxy, enhanced mode (TUN), kernel start/stop.
  */
+import React from "react";
 import { Archive, ChevronDown, Globe, Play, Shield, Square } from "lucide-react";
 import { useT } from "@/i18n";
 import { useApp } from "@/lib/store";
-import { Dropdown, IconButton, Segmented, Spinner, Tooltip } from "@/components/ui";
+import { Dropdown, IconButton, Segmented, Spinner, Tooltip, cx } from "@/components/ui";
 import type { OutboundMode } from "@/lib/types";
 
 export function ProfileMenu() {
@@ -61,64 +62,114 @@ export function ModeSwitch() {
   );
 }
 
+/**
+ * Counts changes of `v` that `count` accepts (not the first render). Updated in a layout
+ * effect, so the re-keyed element mounts with its animation class before the first paint.
+ */
+function useChangeCount<T>(v: T, count: (prev: T, next: T) => boolean = () => true) {
+  const prev = React.useRef(v);
+  const [n, setN] = React.useState(0);
+  React.useLayoutEffect(() => {
+    if (prev.current !== v && count(prev.current, v)) setN((x) => x + 1);
+    prev.current = v;
+  }, [v]); // eslint-disable-line react-hooks/exhaustive-deps
+  return n;
+}
+
+/** Round toolbar switch: tinted when on, a ring spins while busy, ripple when switched on. */
+function ToolbarSwitch({
+  kind,
+  on,
+  busy,
+  tooltip,
+  icon,
+  iconKey,
+  onClick,
+}: {
+  kind: "sysproxy" | "tun" | "core";
+  on: boolean;
+  busy: boolean;
+  tooltip: string;
+  icon: React.ReactNode;
+  /** changes when the icon itself changes, to replay the pop animation */
+  iconKey: string;
+  onClick: () => void;
+}) {
+  const ripple = useChangeCount(on, (_, next) => next); // off → on only
+  const swaps = useChangeCount(iconKey);
+  return (
+    <Tooltip content={tooltip}>
+      <IconButton
+        className={cx("tb-switch", kind, on && "on", busy && "busy")}
+        aria-pressed={on}
+        aria-busy={busy}
+        icon={
+          <>
+            <span key={`${iconKey}-${swaps}`} className={cx("tb-switch-icon", swaps > 0 && "pop")}>
+              {icon}
+            </span>
+            {ripple > 0 && <span key={ripple} className="tb-ripple" />}
+          </>
+        }
+        onClick={onClick}
+      />
+    </Tooltip>
+  );
+}
+
 export function SystemProxyButton() {
   const t = useT();
   const on = useApp((s) => s.settings?.systemProxy ?? false);
-  const busy = useApp((s) => s.busy.sysproxy);
+  const busy = useApp((s) => !!s.busy.sysproxy);
   const toggle = useApp((s) => s.toggleSystemProxy);
   return (
-    <Tooltip content={`${t("common.systemProxy")} · ${t(on ? "common.on" : "common.off")}`}>
-      <IconButton
-        icon={busy ? <Spinner size={14} /> : <Globe size={17} strokeWidth={1.8} color={on ? "var(--blue)" : undefined} />}
-        onClick={() => toggle(!on, { confirm: true })}
-      />
-    </Tooltip>
+    <ToolbarSwitch
+      kind="sysproxy"
+      on={on}
+      busy={busy}
+      tooltip={`${t("common.systemProxy")} · ${t(on ? "common.on" : "common.off")}`}
+      icon={<Globe size={17} strokeWidth={1.8} />}
+      iconKey="globe"
+      onClick={() => !busy && toggle(!on, { confirm: true })}
+    />
   );
 }
 
 export function TunButton() {
   const t = useT();
   const on = useApp((s) => s.settings?.tunMode ?? false);
-  const busy = useApp((s) => s.busy.tun);
+  const busy = useApp((s) => !!s.busy.tun);
   const toggle = useApp((s) => s.toggleTun);
   return (
-    <Tooltip content={`${t("common.enhancedMode")} · ${t(on ? "common.on" : "common.off")}`}>
-      <IconButton
-        icon={
-          busy ? (
-            <Spinner size={14} />
-          ) : (
-            <Shield size={17} strokeWidth={1.8} color={on ? "var(--amber)" : undefined} fill={on ? "var(--amber)" : "none"} fillOpacity={on ? 0.35 : 0} />
-          )
-        }
-        onClick={() => toggle(!on, { confirm: true })}
-      />
-    </Tooltip>
+    <ToolbarSwitch
+      kind="tun"
+      on={on}
+      busy={busy}
+      tooltip={`${t("common.enhancedMode")} · ${t(on ? "common.on" : "common.off")}`}
+      icon={<Shield size={17} strokeWidth={1.8} fill="currentColor" />}
+      iconKey="shield"
+      onClick={() => !busy && toggle(!on, { confirm: true })}
+    />
   );
 }
 
 export function CoreButton() {
   const t = useT();
   const state = useApp((s) => s.core.state);
-  const busy = useApp((s) => s.busy.core);
+  const busy = useApp((s) => !!s.busy.core) || state === "starting";
   const start = useApp((s) => s.startCore);
   const stop = useApp((s) => s.stopCore);
   const running = state === "running";
   return (
-    <Tooltip content={t(running ? "common.stopCore" : "common.startCore")}>
-      <IconButton
-        icon={
-          busy || state === "starting" ? (
-            <Spinner size={14} />
-          ) : running ? (
-            <Square size={13} fill="currentColor" strokeWidth={0} />
-          ) : (
-            <Play size={14} fill="var(--green)" color="var(--green)" />
-          )
-        }
-        onClick={() => (running ? stop({ confirm: true }) : start())}
-      />
-    </Tooltip>
+    <ToolbarSwitch
+      kind="core"
+      on={running}
+      busy={busy}
+      tooltip={t(running ? "common.stopCore" : "common.startCore")}
+      icon={running ? <Square size={13} fill="currentColor" strokeWidth={0} /> : <Play size={14} fill="currentColor" />}
+      iconKey={running ? "stop" : "play"}
+      onClick={() => !busy && (running ? stop({ confirm: true }) : start())}
+    />
   );
 }
 

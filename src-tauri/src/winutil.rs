@@ -465,3 +465,18 @@ pub fn install_cli() -> Res<String> {
     add_to_user_path(&bin)?;
     Ok(bin.to_string_lossy().to_string())
 }
+
+/// Windows "app mode" is dark (Settings → Personalization → Colors).
+#[cfg(windows)]
+pub fn system_prefers_dark() -> bool {
+    use winreg::enums::HKEY_CURRENT_USER;
+    winreg::RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey(r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
+        .and_then(|k| k.get_value::<u32, _>("AppsUseLightTheme"))
+        .map(|v| v == 0)
+        .unwrap_or(false)
+}
+#[cfg(not(windows))]
+pub fn system_prefers_dark() -> bool {
+    false
+}

@@ -55,8 +55,35 @@ export function Segmented<T extends string>({
   size?: "sm" | "md" | "lg";
   className?: string;
 }) {
+  // A thumb slides to the selected option instead of the highlight jumping.
+  const ref = React.useRef<HTMLDivElement>(null);
+  const [thumb, setThumb] = React.useState<{ left: number; width: number } | null>(null);
+  const [animated, setAnimated] = React.useState(false);
+  React.useLayoutEffect(() => {
+    const root = ref.current;
+    if (!root) return;
+    const measure = () => {
+      const el = root.querySelector<HTMLElement>(".ui-seg-item.active");
+      setThumb((cur) => {
+        if (!el || !el.offsetWidth) return null;
+        const next = { left: el.offsetLeft, width: el.offsetWidth };
+        return cur && cur.left === next.left && cur.width === next.width ? cur : next;
+      });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(root);
+    return () => ro.disconnect();
+  }, [value, options.length]);
+  React.useEffect(() => {
+    if (thumb && !animated) {
+      const id = requestAnimationFrame(() => setAnimated(true));
+      return () => cancelAnimationFrame(id);
+    }
+  }, [thumb, animated]);
   return (
-    <div className={cx("ui-seg", size, className)} role="tablist">
+    <div ref={ref} className={cx("ui-seg", size, className, thumb && "has-thumb", animated && "animated")} role="tablist">
+      {thumb && <span className="ui-seg-thumb" style={{ transform: `translateX(${thumb.left}px)`, width: thumb.width }} />}
       {options.map((o) => (
         <button
           key={o.value}
