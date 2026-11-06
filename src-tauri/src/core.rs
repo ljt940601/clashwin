@@ -228,6 +228,8 @@ pub struct ReleaseInfo {
     pub asset_name: String,
     pub asset_url: String,
     pub size: u64,
+    /// Hex SHA-256 published by GitHub for the asset, when available.
+    pub sha256: Option<String>,
 }
 
 pub fn target_arch() -> &'static str {
@@ -320,7 +322,7 @@ fn release_api(channel: &str) -> (&'static str, Option<&'static str>) {
 
 pub fn http_client(proxy: Option<&str>) -> Res<reqwest::Client> {
     let mut b = reqwest::Client::builder()
-        .user_agent("ClashWin/0.1.0")
+        .user_agent(concat!("ClashWin/", env!("CARGO_PKG_VERSION")))
         .connect_timeout(std::time::Duration::from_secs(12))
         .timeout(std::time::Duration::from_secs(600));
     b = match proxy {
@@ -350,6 +352,7 @@ fn parse_release(rel: &serde_json::Value) -> Option<ReleaseInfo> {
         asset_name: names[i].clone(),
         asset_url: a.get("browser_download_url")?.as_str()?.to_string(),
         size: a.get("size").and_then(|s| s.as_u64()).unwrap_or(0),
+        sha256: crate::updates::sha256_from_digest(a.get("digest").and_then(|d| d.as_str())),
     })
 }
 

@@ -1,6 +1,8 @@
 import React from "react";
 import { Box, ListChecks, RefreshCw } from "lucide-react";
-import { Button, Checkbox, Empty, Modal, NumberField, Spinner, TextArea, TextField, toast } from "@/components/ui";
+import { Button, Checkbox, Empty, Modal, NumberField, Spinner, TextField, confirm, toast } from "@/components/ui";
+import { YamlEditor, type YamlEditorHandle } from "@/components/editor/YamlEditor";
+import { errorLine } from "@/components/editor/yaml";
 import { useLang, useT } from "@/i18n";
 import { backend, errorMessage } from "@/lib/backend";
 import { formatAgo, formatCount } from "@/lib/format";
@@ -324,53 +326,90 @@ export function ExternalDialog({ open, onClose }: { open: boolean; onClose: () =
 
 export function EditorDialog({ profile, onClose }: { profile: Profile | null; onClose: () => void }) {
   const t = useT();
+  const editorRef = React.useRef<YamlEditorHandle>(null);
   const [text, setText] = React.useState<string | null>(null);
+  const [saved, setSaved] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!profile) return;
     setText(null);
+    setSaved(null);
     setError(null);
     backend
       .readProfile(profile.id)
-      .then(setText)
+      .then((s) => {
+        setText(s);
+        setSaved(s);
+      })
       .catch((e) => {
         setText("");
+        setSaved("");
         setError(errorMessage(e));
       });
   }, [profile]);
 
-  if (!profile) return null;
+  const errLine = error ? errorLine(error) : null;
+  const dirty = text !== null && text !== saved;
 
-  const save = async () => {
-    if (text === null) return;
+  const save = async (close: boolean) => {
+    if (!profile || text === null || busy) return;
     setBusy(true);
     setError(null);
     try {
       await backend.writeProfile(profile.id, text);
+      setSaved(text);
       toast.success(t("profiles.editorSaved"));
-      onClose();
+      if (close) onClose();
     } catch (e) {
-      setError(errorMessage(e));
+      const msg = errorMessage(e);
+      setError(msg);
+      const line = errorLine(msg);
+      if (line) editorRef.current?.gotoLine(line);
     } finally {
       setBusy(false);
     }
   };
 
+  const asking = React.useRef(false);
+  const tryClose = async () => {
+    // Escape also reaches this dialog while the confirm below is open: ask only once
+    if (busy || asking.current) return;
+    if (dirty) {
+      asking.current = true;
+      const ok = await confirm({ title: t("profiles.editorDiscardTitle"), message: t("profiles.editorDiscard"), danger: true, confirmText: t("profiles.editorDiscardBtn") });
+      asking.current = false;
+      if (!ok) return;
+    }
+    onClose();
+  };
+
+  if (!profile) return null;
+
   return (
     <Modal
       open
-      onClose={() => !busy && onClose()}
+      onClose={tryClose}
       closeOnBackdrop={false}
-      width={760}
-      title={t("profiles.editorTitle", { name: profile.name })}
+      width={900}
+      title={
+        <>
+          {t("profiles.editorTitle", { name: profile.name })}
+          {dirty && <span className="pf-editor-dirty" title={t("profiles.editorUnsaved")} />}
+        </>
+      }
       footer={
         <>
-          <Button onClick={onClose} disabled={busy}>
+          {errLine && (
+            <Button size="sm" variant="plain" onClick={() => editorRef.current?.gotoLine(errLine)} style={{ marginRight: "auto" }}>
+              {t("profiles.editorGotoError", { line: errLine })}
+            </Button>
+          )}
+          <Button onClick={tryClose} disabled={busy}>
             {t("common.cancel")}
           </Button>
-          <Button variant="primary" onClick={save} loading={busy} disabled={text === null}>
+          <Button variant="primary" onClick={() => save(true)} loading={busy} disabled={text === null}>
             {t("common.save")}
           </Button>
         </>
@@ -378,16 +417,11 @@ export function EditorDialog({ profile, onClose }: { profile: Profile | null; on
     >
       <div className="pf-editor">
         {text === null ? (
-          <div style={{ display: "flex", justifyContent: "center", padding: 40 }}>
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
             <Spinner size={18} />
           </div>
         ) : (
-          <TextArea
-            value={text}
-            onChange={setText}
-            mono
-            rows={24}
-          />
+          <YamlEditor ref={editorRef} value={text} onChange={setText} onSave={() => save(false)} errorLine={errLine} autoFocus />
         )}
       </div>
       {error && <div className="pf-error mono">{error}</div>}

@@ -90,6 +90,11 @@
 .en-list-item:hover {
   background: var(--bg-row-hover);
 }
+/* focused item: Delete / Backspace removes it */
+.en-list-item:focus {
+  outline: none;
+  background: var(--bg-row-selected);
+}
 .en-list-text {
   flex: 1;
   min-width: 0;

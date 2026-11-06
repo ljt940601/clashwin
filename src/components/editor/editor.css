@@ -1,0 +1,220 @@
+/* YAML editor. Line height and paddings must match LH / PAD_Y in YamlEditor.tsx. */
+.ce {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-input);
+  overflow: hidden;
+
+  --ce-key: var(--blue);
+  --ce-str: color-mix(in srgb, var(--green) 62%, var(--text-1));
+  --ce-num: var(--orange);
+  --ce-bool: var(--purple);
+  --ce-comment: var(--text-dim);
+  --ce-punct: var(--text-3);
+  --ce-anchor: var(--pink);
+  --ce-tag: var(--magenta);
+  --ce-rule: var(--amber);
+}
+.ce-main {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.ce-gutter {
+  position: relative;
+  flex: none;
+  overflow: hidden;
+  border-right: 1px solid var(--separator);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  user-select: none;
+}
+.ce-num {
+  position: absolute;
+  right: 10px;
+  height: 19px;
+  line-height: 19px;
+  font-variant-numeric: tabular-nums;
+}
+.ce-num.active {
+  color: var(--text-2);
+}
+.ce-num.error {
+  color: var(--red);
+  font-weight: 600;
+}
+.ce-area {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.ce-rows,
+.ce-hl {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.ce-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 19px;
+}
+.ce-row.active {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+.ce-row.error {
+  background: color-mix(in srgb, var(--red) 16%, transparent);
+}
+.ce-line,
+.ce-input,
+.ce-placeholder {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 19px;
+  letter-spacing: 0;
+  font-variant-ligatures: none;
+  tab-size: 2;
+  white-space: pre;
+}
+.ce-line {
+  position: absolute;
+  left: 10px;
+  height: 19px;
+  color: var(--text-1);
+}
+.ce-placeholder {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  color: var(--text-faint);
+  pointer-events: none;
+}
+.ce-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  border: 0;
+  outline: 0;
+  resize: none;
+  overflow: auto;
+  background: transparent;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  caret-color: var(--text);
+}
+.ce-input::selection {
+  background: color-mix(in srgb, var(--accent) 34%, transparent);
+}
+
+.tk-key { color: var(--ce-key); }
+.tk-str { color: var(--ce-str); }
+.tk-num { color: var(--ce-num); }
+.tk-bool,
+.tk-null { color: var(--ce-bool); }
+.tk-comment,
+.tk-doc { color: var(--ce-comment); }
+.tk-punct { color: var(--ce-punct); }
+.tk-anchor { color: var(--ce-anchor); }
+.tk-tag { color: var(--ce-tag); }
+.tk-rule { color: var(--ce-rule); }
+
+.ce-mark {
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--yellow) 28%, transparent);
+}
+.ce-mark.cur {
+  background: color-mix(in srgb, var(--orange) 55%, transparent);
+}
+
+/* find bar */
+.ce-find {
+  position: absolute;
+  top: 6px;
+  right: 18px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 4px 3px 8px;
+  border-radius: 7px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-menu);
+  z-index: 2;
+}
+.ce-find-input {
+  width: 170px;
+  height: 22px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.ce-find-count {
+  min-width: 46px;
+  padding: 0 4px;
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ce-find-count.none {
+  color: var(--red);
+}
+.ce-find-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.ce-find-btn:hover:not(:disabled) {
+  background: var(--bg-control-hover);
+}
+.ce-find-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* status bar */
+.ce-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  height: 24px;
+  padding: 0 10px;
+  border-top: 1px solid var(--separator);
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+.ce-status-dim {
+  color: var(--text-dim);
+}
+.ce-status-spacer {
+  flex: 1;
+}
+.ce-status-lang {
+  color: var(--text-dim);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}

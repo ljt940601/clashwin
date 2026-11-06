@@ -107,6 +107,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   coreChannel: "stable",
   autoCheckUpdate: true,
   includeBeta: false,
+  downloadMirror: "auto",
+  customMirrors: [],
   historyRetentionDays: 90,
   systemProxy: false,
   tunMode: false,

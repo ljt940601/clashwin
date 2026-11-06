@@ -135,6 +135,100 @@ function routes(range: string): RouteAgg[] {
   return [...base, { proxyCountry: "HK", targetCountry: "SG", node: "🇭🇰 HK 01", bytes: 120 * MB, count: 51 }, { proxyCountry: "DE", targetCountry: "NL", node: "🇩🇪 DE Frankfurt", bytes: 40 * MB, count: 9 }];
 }
 
+const MIRROR_PRESETS = ["https://ghfast.top/", "https://gh-proxy.com/", "https://ghproxy.net/", "https://gh.llkk.cc/"];
+let cachedCores = ["v1.19.27", "v1.19.26", "v1.19.24"];
+let lastAppCheck: unknown = null;
+const MOCK_APP_UPDATE = {
+  current: "0.1.0",
+  latest: "0.2.0",
+  hasUpdate: true,
+  url: "https://github.com/ljt940601/clashwin/releases/tag/v0.2.0",
+  notes: "",
+  publishedAt: new Date(Date.now() - 2 * 86400e3).toISOString(),
+  size: 9e6,
+  releases: [
+    {
+      version: "0.2.0",
+      name: "ClashWin v0.2.0",
+      notes:
+        "## 新增\n- **更新中心**：应用与内核更新集中到一处，支持一键安装\n- 内置 YAML 编辑器：行号、语法高亮、查找（`Ctrl+F`）\n- GitHub 下载镜像，自动测速选最快\n\n## 修复\n- 列表输入可连续回车添加，选中后按 Delete 删除\n\n详情见 [Release 页面](https://github.com/ljt940601/clashwin/releases)",
+      publishedAt: new Date(Date.now() - 2 * 86400e3).toISOString(),
+      prerelease: false,
+      url: "https://github.com/ljt940601/clashwin/releases/tag/v0.2.0",
+      size: 9e6,
+    },
+    {
+      version: "0.1.0",
+      name: "ClashWin v0.1.0",
+      notes: "下载下面的 ClashWin_0.1.0_x64-setup.exe 安装即可（Windows 10/11 x64）。",
+      publishedAt: new Date(Date.now() - 9 * 86400e3).toISOString(),
+      prerelease: false,
+      url: "https://github.com/ljt940601/clashwin/releases/tag/v0.1.0",
+      size: 8.7e6,
+    },
+  ],
+};
+
+const MOCK_PROFILE_YAML = `# Mini_en subscription
+mixed-port: 7890
+allow-lan: false
+mode: rule
+log-level: info
+ipv6: false
+external-controller: 127.0.0.1:9097
+
+dns:
+  enable: true
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  nameserver:
+    - https://doh.pub/dns-query
+    - 223.5.5.5
+
+proxies:
+  - {name: 🇺🇸 GCP US-anytls, type: anytls, server: us1.example.com, port: 443, password: "p@ss", udp: true}
+  - {name: 🇯🇵 OC JP1-trojan, type: trojan, server: jp1.example.com, port: 8443, password: secret, sni: jp1.example.com}
+  - name: 🇸🇬 OC SG1-vless
+    type: vless
+    server: sg1.example.com
+    port: 443
+    uuid: 6f1d3c2a-0000-4000-8000-123456789abc
+    tls: true
+    skip-cert-verify: false
+    reality-opts:
+      public-key: &key AbCdEfGh123
+      short-id: ""
+
+proxy-groups:
+  - name: Proxy
+    type: select
+    proxies: [Auto, 🇺🇸 GCP US-anytls, 🇯🇵 OC JP1-trojan, 🇸🇬 OC SG1-vless]
+  - name: Auto
+    type: url-test
+    url: https://www.gstatic.com/generate_204
+    interval: 300
+    tolerance: 50
+    proxies:
+      - 🇺🇸 GCP US-anytls
+      - 🇯🇵 OC JP1-trojan
+
+rule-providers:
+  reject:
+    type: http
+    behavior: domain
+    url: https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/reject.txt
+    path: ./ruleset/reject.yaml
+    interval: 86400
+
+rules:
+  - RULE-SET,reject,REJECT
+  - DOMAIN-SUFFIX,google.com,Proxy
+  - DOMAIN-KEYWORD,github,Proxy
+  - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve
+  - GEOIP,CN,DIRECT
+  - MATCH,Proxy
+`;
+
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function mockInvoke<T>(cmd: string, args: any = {}): Promise<T> {
@@ -179,7 +273,14 @@ export async function mockInvoke<T>(cmd: string, args: any = {}): Promise<T> {
       emit("core://status", core);
       return r(core);
     case "core_check_update":
-      return r({ channel: args.channel, current: "v1.19.27", latest: "v1.19.28", hasUpdate: true, notes: "- Fix: DNS cache\n- New: smart group tweaks" });
+      await delay(400);
+      return r({
+        channel: args.channel,
+        current: "v1.19.27",
+        latest: "v1.19.28",
+        hasUpdate: true,
+        notes: "## What's Changed\n* fix: DNS cache not cleared on reload by @someone in https://github.com/MetaCubeX/mihomo/pull/2301\n* feat: smart group tweaks\n* chore: update dependencies",
+      });
     case "core_install":
       for (let i = 0; i <= 10; i++) {
         emit("core://download-progress", { stage: i < 10 ? "downloading" : "done", downloaded: i * 1.5e6, total: 15e6 });
@@ -187,7 +288,10 @@ export async function mockInvoke<T>(cmd: string, args: any = {}): Promise<T> {
       }
       return r(core);
     case "core_cached_versions":
-      return r(["v1.19.27", "v1.19.26", "v1.19.24"]);
+      return r([...cachedCores]);
+    case "core_delete_cached":
+      cachedCores = cachedCores.filter((v) => v !== args.version);
+      return r(undefined);
     case "core_log_tail":
       return r(["time=... level=info msg=\"Start initial configuration in progress\"", "time=... level=info msg=\"Mixed(http+socks) proxy listening at: 127.0.0.1:7890\""]);
     case "helper_status":
@@ -235,7 +339,7 @@ export async function mockInvoke<T>(cmd: string, args: any = {}): Promise<T> {
       emit("settings://changed", settings);
       return r(undefined);
     case "read_profile":
-      return r("mixed-port: 7890\nmode: rule\nproxies: []\nproxy-groups: []\nrules:\n  - MATCH,DIRECT\n");
+      return r(MOCK_PROFILE_YAML);
     case "set_profile_providers":
       profiles = profiles.map((p) => (p.id === args.id ? { ...p, providers: args.providerIds } : p));
       emit("profiles://changed", profiles);
@@ -291,11 +395,45 @@ export async function mockInvoke<T>(cmd: string, args: any = {}): Promise<T> {
     case "local_location":
       return r({ country: "CN", city: "Shanghai", lat: 31.23, lon: 121.47 });
     case "check_app_update":
-      return r({ hasUpdate: false, latest: "0.1.0", url: "https://github.com" });
+      await delay(500);
+      lastAppCheck = MOCK_APP_UPDATE;
+      emit("app://update-available", lastAppCheck);
+      return r(lastAppCheck);
+    case "app_update_cached":
+      return r(lastAppCheck);
+    case "install_app_update":
+      emit("app://update-progress", { stage: "checking", downloaded: 0, total: 0 });
+      for (let i = 0; i <= 12; i++) {
+        await delay(150);
+        emit("app://update-progress", { stage: "downloading", downloaded: i * 0.75e6, total: 9e6 });
+      }
+      emit("app://update-progress", { stage: "done", downloaded: 1, total: 1 });
+      return r(undefined);
+    case "download_sources":
+      return r([
+        { url: "", kind: "direct" },
+        ...MIRROR_PRESETS.map((url) => ({ url, kind: "preset" })),
+        ...settings.customMirrors.map((url) => ({ url: url.endsWith("/") ? url : url + "/", kind: "custom" })),
+      ]);
+    case "test_download_sources": {
+      await delay(900);
+      const urls = ["", ...MIRROR_PRESETS, ...settings.customMirrors];
+      return r(
+        urls.map((url, i) =>
+          i === 0 ? { url, latencyMs: 1840 } : i === 3 ? { url, error: "timeout" } : { url, latencyMs: Math.round(rnd(90, 480)) },
+        ),
+      );
+    }
     case "process_icon":
       return r(null);
     case "install_cli":
       return r("C:\\Users\\me\\AppData\\Local\\ClashWin\\bin");
+    case "write_profile": {
+      // simulate `mihomo -t` rejecting a config: any line containing "!!bad"
+      const bad = (args.content as string).split("\n").findIndex((l) => l.includes("!!bad"));
+      if (bad >= 0) throw { code: "INVALID_CONFIG", message: `yaml: line ${bad + 1}: did not find expected key` };
+      return r(undefined);
+    }
     case "open_dashboard":
     case "open_settings":
     case "hide_tray_panel":
@@ -304,7 +442,6 @@ export async function mockInvoke<T>(cmd: string, args: any = {}): Promise<T> {
     case "quit_app":
     case "restart_as_admin":
     case "core_reload":
-    case "write_profile":
     case "open_profile_in_editor":
     case "update_external_resources":
     case "history_clear":

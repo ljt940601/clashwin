@@ -239,13 +239,14 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.pf-editor textarea {
-  height: 52vh;
-  resize: none;
-  font-size: 12px;
-  line-height: 1.5;
-  white-space: pre;
-  tab-size: 2;
+.pf-editor {
+  height: min(62vh, 640px);
+}
+.pf-editor-dirty {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--orange);
 }
 .pf-modal-desc {
   font-size: 12px;

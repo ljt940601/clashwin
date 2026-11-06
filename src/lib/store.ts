@@ -60,6 +60,17 @@ async function withBusy(key: string, fn: () => Promise<void>) {
   }
 }
 
+/** Deep-merge a settings patch (arrays are replaced, like the backend does). */
+function mergePatch<T>(base: T, patch: unknown): T {
+  if (patch === undefined) return base;
+  if (Array.isArray(patch) || typeof patch !== "object" || patch === null) return patch as T;
+  const out: any = { ...(base as any) };
+  for (const [k, v] of Object.entries(patch)) out[k] = mergePatch((base as any)?.[k], v);
+  return out;
+}
+let saveSeq = 0;
+let pendingSaves = 0;
+
 async function handleNeedAdmin(e: unknown): Promise<boolean> {
   if (errorCode(e) !== "NEED_ADMIN") return false;
   const ok = await confirm({ title: t("common.needAdmin"), message: t("common.needAdminDesc"), confirmText: t("common.restartAsAdmin") });
@@ -91,6 +102,8 @@ export const useApp = create<AppState>((set, get) => ({
       if (s) applyTheme(s.theme);
     });
     listen<AppSettings>("settings://changed", (s) => {
+      // our own saves in flight: their responses carry the newest settings
+      if (pendingSaves > 0) return;
       applySettings(s);
       set({ settings: s });
     });
@@ -103,12 +116,36 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   saveSettings: async (patch) => {
+    // Show the change right away so quick successive edits (e.g. pressing Enter to add
+    // several list items) build on each other instead of on a stale copy.
+    const cur = get().settings;
+    if (cur) {
+      const next = mergePatch(cur, patch);
+      applySettings(next);
+      set({ settings: next });
+    }
+    const seq = ++saveSeq;
+    pendingSaves++;
     try {
       const s = await backend.saveSettings(patch);
-      applySettings(s);
-      set({ settings: s });
+      if (seq === saveSeq) {
+        applySettings(s);
+        set({ settings: s });
+      }
     } catch (e) {
       toast.error(errorMessage(e));
+      // fall back to what the backend actually stored
+      backend
+        .getSettings()
+        .then((s) => {
+          if (seq === saveSeq) {
+            applySettings(s);
+            set({ settings: s });
+          }
+        })
+        .catch(() => {});
+    } finally {
+      pendingSaves--;
     }
   },
 

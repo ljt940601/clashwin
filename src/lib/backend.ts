@@ -11,17 +11,20 @@
 import type {
   AppInfo,
   AppSettings,
+  AppUpdateInfo,
   CoreChannel,
   CoreStatus,
   CoreUpdateInfo,
   DeepPartial,
   DownloadProgress,
+  DownloadSource,
   ExternalResource,
   HelperStatus,
   HistoryInfo,
   OutboundMode,
   Profile,
   RouteAgg,
+  SourceProbe,
   StatsPeriod,
   StatsSummary,
 } from "./types";
@@ -54,6 +57,8 @@ export function errorCode(e: unknown): string | undefined {
 export type BackendEvent =
   | "core://status" // CoreStatus
   | "core://download-progress" // DownloadProgress
+  | "app://update-progress" // DownloadProgress (ClashWin installer)
+  | "app://update-available" // AppUpdateInfo
   | "settings://changed" // AppSettings
   | "profiles://changed" // Profile[]
   | "app://navigate" // { page: string } - dashboard should navigate
@@ -94,7 +99,16 @@ export const backend = {
   nodeCountries: () => call<Record<string, string>>("node_countries"),
   /** Approximate local country/city for the map origin */
   localLocation: () => call<{ country: string; city: string; lat: number; lon: number }>("local_location"),
-  checkAppUpdate: () => call<{ hasUpdate: boolean; latest: string; url: string; notes?: string }>("check_app_update"),
+  /** Checks GitHub Releases for a newer ClashWin; emits app://update-available when found */
+  checkAppUpdate: () => call<AppUpdateInfo>("check_app_update"),
+  /** Result of the last check this session (e.g. the startup check), null if none yet */
+  appUpdateCached: () => call<AppUpdateInfo | null>("app_update_cached"),
+  /** Download the installer (progress via app://update-progress), run it and quit; it restarts ClashWin */
+  installAppUpdate: () => call<void>("install_app_update"),
+  /** Direct GitHub + preset mirrors + the user's mirrors, in display order */
+  downloadSources: () => call<DownloadSource[]>("download_sources"),
+  /** Time a small GitHub download through every source (takes up to ~8s) */
+  testDownloadSources: () => call<SourceProbe[]>("test_download_sources"),
   /** Adds the `clashwin` CLI to the user's PATH */
   installCli: () => call<string>("install_cli"),
   /** Primary IPv4 LAN address, null when unavailable */
@@ -138,6 +152,8 @@ export const backend = {
   coreInstall: (channel: CoreChannel) => call<CoreStatus>("core_install", { channel }),
   coreCachedVersions: () => call<string[]>("core_cached_versions"),
   coreRollback: (version: string) => call<CoreStatus>("core_rollback", { version }),
+  /** Delete a kept core version (not the one in use) */
+  coreDeleteCached: (version: string) => call<void>("core_delete_cached", { version }),
   /** Last N lines of the core's own stdout/stderr */
   coreLogTail: (lines: number) => call<string[]>("core_log_tail", { lines }),
 

@@ -99,6 +99,12 @@
   font-size: 12.5px;
   letter-spacing: 0.2px;
 }
+.tr-update-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--orange);
+}
 .tr-chev {
   color: var(--tr-dim);
   flex-shrink: 0;

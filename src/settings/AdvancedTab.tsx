@@ -1,12 +1,12 @@
 import React from "react";
-import { Download, RefreshCw, RotateCcw, Terminal, Trash2 } from "lucide-react";
+import { RefreshCw, RotateCcw, Terminal, Trash2 } from "lucide-react";
 import { useT } from "@/i18n";
 import { useApp } from "@/lib/store";
-import { backend, errorMessage, listen } from "@/lib/backend";
+import { backend, errorMessage } from "@/lib/backend";
 import { mihomo } from "@/lib/mihomo";
 import { formatBytes, formatCount } from "@/lib/format";
-import { Button, FormRow, FormSection, IconButton, NumberField, Progress, Select, TextField, confirm, toast } from "@/components/ui";
-import type { AppSettings, CoreChannel, CoreUpdateInfo, DownloadProgress, HistoryInfo } from "@/lib/types";
+import { Button, FormRow, FormSection, IconButton, NumberField, Select, TextField, confirm, toast } from "@/components/ui";
+import type { AppSettings, HistoryInfo } from "@/lib/types";
 
 function randomSecret(len = 16) {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
@@ -58,82 +58,8 @@ export default function AdvancedTab() {
   const core = useApp((st) => st.core);
   const save = useApp((st) => st.saveSettings);
   const restartCore = useApp((st) => st.restartCore);
-  const refreshCore = useApp((st) => st.refreshCore);
   const coreBusy = useApp((st) => st.busy.core);
   const running = core.state === "running";
-
-  /* ----- kernel updates ----- */
-  const [checking, setChecking] = React.useState(false);
-  const [update, setUpdate] = React.useState<CoreUpdateInfo | null>(null);
-  const [installing, setInstalling] = React.useState(false);
-  const [progress, setProgress] = React.useState<DownloadProgress | null>(null);
-  const [cached, setCached] = React.useState<string[]>([]);
-  const [rollbackTo, setRollbackTo] = React.useState("");
-  const [rollingBack, setRollingBack] = React.useState(false);
-
-  React.useEffect(() => {
-    let un: (() => void) | undefined;
-    listen<DownloadProgress>("core://download-progress", setProgress).then((f) => (un = f));
-    return () => un?.();
-  }, []);
-
-  const loadCached = React.useCallback(() => {
-    backend
-      .coreCachedVersions()
-      .then((list) => {
-        setCached(list);
-        setRollbackTo((cur) => (cur && list.includes(cur) ? cur : list.find((v) => v !== core.version) ?? list[0] ?? ""));
-      })
-      .catch(() => setCached([]));
-  }, [core.version]);
-  React.useEffect(loadCached, [loadCached]);
-
-  const checkUpdate = async () => {
-    setChecking(true);
-    setUpdate(null);
-    try {
-      const info = await backend.coreCheckUpdate(s.coreChannel);
-      setUpdate(info);
-      if (!info.hasUpdate) toast.success(t("settings.upToDate"));
-    } catch (e) {
-      toast.error(errorMessage(e));
-    } finally {
-      setChecking(false);
-    }
-  };
-
-  const install = async () => {
-    setInstalling(true);
-    setProgress({ stage: "checking", downloaded: 0, total: 0 });
-    try {
-      const st = await backend.coreInstall(s.coreChannel);
-      useApp.setState({ core: st });
-      toast.success(t("settings.installed", { v: st.version ?? update?.latest ?? "" }));
-      setUpdate(null);
-      loadCached();
-    } catch (e) {
-      setProgress((p) => (p ? { ...p, stage: "error", message: errorMessage(e) } : null));
-      toast.error(errorMessage(e));
-    } finally {
-      setInstalling(false);
-    }
-  };
-
-  const rollback = async () => {
-    if (!rollbackTo) return;
-    if (!(await confirm({ title: t("settings.rollback"), message: t("settings.rollbackConfirm", { v: rollbackTo }), danger: true }))) return;
-    setRollingBack(true);
-    try {
-      useApp.setState({ core: await backend.coreRollback(rollbackTo) });
-      await refreshCore();
-      toast.success(t("settings.installed", { v: rollbackTo }));
-      loadCached();
-    } catch (e) {
-      toast.error(errorMessage(e));
-    } finally {
-      setRollingBack(false);
-    }
-  };
 
   /* ----- cache cleanup ----- */
   const [cacheBusy, setCacheBusy] = React.useState("");
@@ -186,15 +112,6 @@ export default function AdvancedTab() {
     }
   };
 
-  const stageKey: Record<DownloadProgress["stage"], string> = {
-    checking: "settings.stageChecking",
-    downloading: "settings.stageDownloading",
-    extracting: "settings.stageExtracting",
-    done: "settings.stageDone",
-    error: "settings.stageError",
-  };
-  const pct = progress && progress.total > 0 ? progress.downloaded / progress.total : progress?.stage === "done" ? 1 : 0;
-
   return (
     <>
       <FormSection title={t("settings.controller")} desc={t("settings.controllerDesc")}>
@@ -216,74 +133,6 @@ export default function AdvancedTab() {
         <FormRow style={{ justifyContent: "flex-end" }}>
           <Button size="sm" icon={<RotateCcw size={12} />} loading={!!coreBusy} disabled={core.state === "not_installed"} onClick={() => restartCore()}>
             {t("settings.restartKernel")}
-          </Button>
-        </FormRow>
-      </FormSection>
-
-      <FormSection title={t("settings.coreSection")}>
-        <FormRow label={t("settings.channel")} desc={t("settings.channelDesc")}>
-          <Select<CoreChannel>
-            width={170}
-            value={s.coreChannel}
-            onChange={(v) => {
-              setUpdate(null);
-              save({ coreChannel: v });
-            }}
-            options={[
-              { value: "stable", label: t("settings.channelStable") },
-              { value: "alpha", label: t("settings.channelAlpha") },
-              { value: "smart", label: t("settings.channelSmart") },
-            ]}
-          />
-        </FormRow>
-        <FormRow
-          label={t("settings.currentVersion")}
-          desc={
-            update
-              ? update.hasUpdate
-                ? t("settings.latestVersion", { v: update.latest })
-                : t("settings.upToDate")
-              : undefined
-          }
-        >
-          <span className="st-value mono">{core.version ?? t("common.notInstalled")}</span>
-          <Button size="sm" loading={checking} disabled={installing} onClick={checkUpdate}>
-            {t("settings.checkUpdate")}
-          </Button>
-        </FormRow>
-        {(update?.hasUpdate || installing || (progress && progress.stage !== "done")) && (
-          <FormRow stack>
-            {update?.notes && <div className="st-notes">{update.notes}</div>}
-            {progress && (installing || progress.stage === "error") && (
-              <div className="st-progress">
-                <Progress value={pct} height={5} color={progress.stage === "error" ? "var(--red)" : "var(--accent)"} />
-                <div className="st-progress-text">
-                  <span>{progress.message ?? t(stageKey[progress.stage])}</span>
-                  {progress.total > 0 && (
-                    <span>
-                      {formatBytes(progress.downloaded)} / {formatBytes(progress.total)}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-            {update?.hasUpdate && (
-              <div className="st-inline" style={{ justifyContent: "flex-end" }}>
-                <Button size="sm" variant="primary" icon={<Download size={12} />} loading={installing} onClick={install}>
-                  {installing ? t("settings.installing") : t("settings.downloadInstall")}
-                </Button>
-              </div>
-            )}
-          </FormRow>
-        )}
-        <FormRow label={t("settings.rollback")} desc={t("settings.rollbackDesc")}>
-          {cached.length ? (
-            <Select width={130} value={rollbackTo} onChange={setRollbackTo} options={cached.map((v) => ({ value: v, label: v }))} />
-          ) : (
-            <span className="st-value">{t("settings.noCachedVersions")}</span>
-          )}
-          <Button size="sm" loading={rollingBack} disabled={!rollbackTo || rollbackTo === core.version} onClick={rollback}>
-            {t("settings.rollbackBtn")}
           </Button>
         </FormRow>
       </FormSection>

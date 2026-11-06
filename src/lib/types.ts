@@ -256,6 +256,38 @@ export interface CoreUpdateInfo {
 
 export type CoreChannel = "stable" | "alpha" | "smart";
 
+export interface AppRelease {
+  version: string; // "0.2.0"
+  name: string;
+  notes: string; // markdown
+  publishedAt?: string; // ISO time
+  prerelease: boolean;
+  url: string;
+  size: number; // installer bytes, 0 = no installer for this CPU
+}
+
+export interface AppUpdateInfo {
+  current: string;
+  latest: string;
+  hasUpdate: boolean;
+  url: string;
+  notes?: string;
+  publishedAt?: string;
+  size: number;
+  releases: AppRelease[]; // newest first
+}
+
+export interface DownloadSource {
+  url: string; // mirror prefix, "" = direct
+  kind: "direct" | "preset" | "custom";
+}
+
+export interface SourceProbe {
+  url: string;
+  latencyMs?: number;
+  error?: string; // "timeout" | "dns" | "unreachable" | "HTTP 404" ...
+}
+
 export interface HelperStatus {
   installed: boolean;
   running: boolean;
@@ -386,6 +418,9 @@ export interface AppSettings {
   coreChannel: CoreChannel;
   autoCheckUpdate: boolean;
   includeBeta: boolean;
+  /** GitHub downloads: "auto" (fastest working source), "direct", or a mirror prefix */
+  downloadMirror: string;
+  customMirrors: string[];
   historyRetentionDays: 30 | 60 | 90 | 0; // 0 = forever
   systemProxy: boolean;
   tunMode: boolean;

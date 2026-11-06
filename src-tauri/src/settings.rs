@@ -351,6 +351,11 @@ pub struct AppSettings {
     pub core_channel: String,
     pub auto_check_update: bool,
     pub include_beta: bool,
+    /// Where GitHub downloads (core, app installer) come from: "auto" (fastest working
+    /// source), "direct", or a mirror prefix such as "https://ghfast.top/".
+    pub download_mirror: String,
+    /// Mirror prefixes added by the user.
+    pub custom_mirrors: Vec<String>,
     pub history_retention_days: u32,
     pub system_proxy: bool,
     pub tun_mode: bool,
@@ -378,6 +383,8 @@ impl Default for AppSettings {
             core_channel: s("stable"),
             auto_check_update: true,
             include_beta: false,
+            download_mirror: s("auto"),
+            custom_mirrors: vec![],
             history_retention_days: 90,
             system_proxy: false,
             tun_mode: false,
