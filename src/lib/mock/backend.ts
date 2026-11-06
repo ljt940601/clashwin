@@ -135,6 +135,8 @@ function routes(range: string): RouteAgg[] {
   return [...base, { proxyCountry: "HK", targetCountry: "SG", node: "🇭🇰 HK 01", bytes: 120 * MB, count: 51 }, { proxyCountry: "DE", targetCountry: "NL", node: "🇩🇪 DE Frankfurt", bytes: 40 * MB, count: 9 }];
 }
 
+let speedBusy = false;
+let speedCancel = false;
 const MIRROR_PRESETS = ["https://ghfast.top/", "https://gh-proxy.com/", "https://ghproxy.net/", "https://gh.llkk.cc/"];
 let cachedCores = ["v1.19.27", "v1.19.26", "v1.19.24"];
 let lastAppCheck: unknown = null;
@@ -291,6 +293,34 @@ export async function mockInvoke<T>(cmd: string, args: any = {}): Promise<T> {
       return r([...cachedCores]);
     case "core_delete_cached":
       cachedCores = cachedCores.filter((v) => v !== args.version);
+      return r(undefined);
+    case "speed_test": {
+      if (speedBusy) throw { code: "BUSY", message: "Another speed test is running" };
+      speedBusy = true;
+      speedCancel = false;
+      try {
+        const total = settings.speedTestSizeMb * 1024 * 1024;
+        const bps = (args.node as string).includes("JP") ? 4.2e6 : rnd(8e6, 28e6);
+        if ((args.node as string).includes("HK")) {
+          await delay(1500);
+          throw { code: "NETWORK", message: "Timed out connecting through this node" };
+        }
+        await delay(400);
+        let got = 0;
+        const t0 = Date.now();
+        while (got < total && Date.now() - t0 < 10000) {
+          if (speedCancel) throw { code: "CANCELLED", message: "Speed test cancelled" };
+          await delay(150);
+          got = Math.min(total, got + bps * 0.15);
+          emit("speedtest://progress", { node: args.node, downloaded: got, total, bytesPerSec: Math.round(bps * rnd(0.9, 1.05)) });
+        }
+        return r({ node: args.node, bytesPerSec: Math.round(bps), downloaded: got, ttfbMs: 380, elapsedMs: Date.now() - t0, partial: got < total, at: Date.now() });
+      } finally {
+        speedBusy = false;
+      }
+    }
+    case "speed_test_cancel":
+      speedCancel = true;
       return r(undefined);
     case "core_log_tail":
       return r(["time=... level=info msg=\"Start initial configuration in progress\"", "time=... level=info msg=\"Mixed(http+socks) proxy listening at: 127.0.0.1:7890\""]);

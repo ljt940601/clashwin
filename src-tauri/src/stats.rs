@@ -100,6 +100,10 @@ pub struct ConnSample {
 impl ConnSample {
     pub fn from_json(c: &serde_json::Value) -> Option<Self> {
         let md = c.get("metadata")?;
+        // node speed tests aren't the user's browsing: keep them out of the history
+        if md.get("inboundName").and_then(|v| v.as_str()) == Some(crate::speedtest::LISTENER) {
+            return None;
+        }
         let s = |v: Option<&serde_json::Value>| v.and_then(|x| x.as_str()).unwrap_or("").to_string();
         Some(ConnSample {
             id: s(c.get("id")),

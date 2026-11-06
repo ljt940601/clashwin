@@ -25,6 +25,7 @@ import type {
   Profile,
   RouteAgg,
   SourceProbe,
+  SpeedResult,
   StatsPeriod,
   StatsSummary,
 } from "./types";
@@ -59,6 +60,7 @@ export type BackendEvent =
   | "core://download-progress" // DownloadProgress
   | "app://update-progress" // DownloadProgress (ClashWin installer)
   | "app://update-available" // AppUpdateInfo
+  | "speedtest://progress" // SpeedProgress
   | "settings://changed" // AppSettings
   | "profiles://changed" // Profile[]
   | "app://navigate" // { page: string } - dashboard should navigate
@@ -154,6 +156,10 @@ export const backend = {
   coreRollback: (version: string) => call<CoreStatus>("core_rollback", { version }),
   /** Delete a kept core version (not the one in use) */
   coreDeleteCached: (version: string) => call<void>("core_delete_cached", { version }),
+  /** Download speed through one node (one at a time; progress via speedtest://progress).
+   * Errors: CORE_NOT_RUNNING, BUSY, CANCELLED, SPEEDTEST_UNAVAILABLE, NETWORK */
+  speedTest: (node: string) => call<SpeedResult>("speed_test", { node }),
+  speedTestCancel: () => call<void>("speed_test_cancel"),
   /** Last N lines of the core's own stdout/stderr */
   coreLogTail: (lines: number) => call<string[]>("core_log_tail", { lines }),
 

@@ -47,6 +47,8 @@ pub struct AppState {
     pub reload_seq: AtomicU64,
     pub op: tokio::sync::Mutex<()>,
     pub cleaned_up: AtomicBool,
+    /// Local port of the node speed-test listener (speedtest.rs).
+    pub speedtest_port: u16,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -88,6 +90,8 @@ impl AppState {
             reload_seq: AtomicU64::new(0),
             op: tokio::sync::Mutex::new(()),
             cleaned_up: AtomicBool::new(false),
+            // below Windows' dynamic port range, so outgoing connections don't take it later
+            speedtest_port: crate::sysproxy::free_port(27890),
             paths,
         }
     }
@@ -187,6 +191,7 @@ impl AppState {
             providers: &providers,
             settings: &settings,
             tun_allowed: self.elevated,
+            speedtest_port: Some(self.speedtest_port),
         })
     }
 

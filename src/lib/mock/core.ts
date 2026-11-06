@@ -50,7 +50,9 @@ proxies["CN"] = group("CN", "Selector", ["DIRECT", "OUTCN"], "DIRECT");
 proxies["MATCH"] = group("MATCH", "Selector", ["OUTCN", "DIRECT", ...nodeNames], "🇯🇵 OC JP1-anytls");
 proxies["AdBlock"] = group("AdBlock", "Selector", ["REJECT", "REJECT-DROP", "DIRECT"], "REJECT");
 proxies["Fallback"] = group("Fallback", "Fallback", nodeNames.slice(3, 9), "🇸🇬 OC SG1-anytls", true);
-proxies["GLOBAL"] = group("GLOBAL", "Selector", ["DIRECT", "REJECT", "OUTCN", "Auto", "Streaming", "CN", "MATCH", "AdBlock", ...nodeNames], "OUTCN");
+// the app's hidden node speed-test group (filtered out by mihomo.proxies())
+proxies["ClashWin-SpeedTest"] = { ...group("ClashWin-SpeedTest", "Selector", ["DIRECT", ...nodeNames], "DIRECT"), hidden: true };
+proxies["GLOBAL"] = group("GLOBAL", "Selector", ["DIRECT", "REJECT", "OUTCN", "Auto", "Streaming", "CN", "MATCH", "AdBlock", "ClashWin-SpeedTest", ...nodeNames], "OUTCN");
 
 /* ---------------- Rules ---------------- */
 const RULES: [string, string, string, number][] = [

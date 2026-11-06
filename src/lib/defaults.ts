@@ -117,6 +117,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   policy: { hideTimeoutNodes: false, showHiddenGroups: false, autoCloseOnSwitch: true, collapsed: {} },
   delayTestUrl: "https://www.gstatic.com/generate_204",
   delayTimeout: 5000,
+  speedTestSizeMb: 10,
   sidebarCollapsed: false,
   engine: DEFAULT_ENGINE,
 };

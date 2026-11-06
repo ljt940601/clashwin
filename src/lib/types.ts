@@ -277,6 +277,24 @@ export interface AppUpdateInfo {
   releases: AppRelease[]; // newest first
 }
 
+export interface SpeedProgress {
+  node: string;
+  downloaded: number;
+  total: number;
+  bytesPerSec: number;
+}
+
+export interface SpeedResult {
+  node: string;
+  bytesPerSec: number;
+  downloaded: number;
+  ttfbMs: number;
+  elapsedMs: number;
+  /** the 10-second window ended before the whole file arrived */
+  partial: boolean;
+  at: number; // ms epoch
+}
+
 export interface DownloadSource {
   url: string; // mirror prefix, "" = direct
   kind: "direct" | "preset" | "custom";
@@ -434,6 +452,8 @@ export interface AppSettings {
   };
   delayTestUrl: string;
   delayTimeout: number;
+  /** MB downloaded per node speed test: 5 | 10 | 25 | 50 */
+  speedTestSizeMb: number;
   sidebarCollapsed: boolean;
   engine: EngineSettings;
 }

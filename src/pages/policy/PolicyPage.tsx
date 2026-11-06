@@ -1,6 +1,7 @@
 import React from "react";
 import {
   Activity,
+  ArrowDownToLine,
   ChevronDown,
   ChevronRight,
   ChevronsDownUp,
@@ -31,15 +32,18 @@ import {
   Tag,
   Tooltip,
   cx,
+  openContextMenu,
   toast,
   usageColor,
+  type MenuEntry,
 } from "@/components/ui";
 import { useLang, useT } from "@/i18n";
 import { mihomo } from "@/lib/mihomo";
 import { useApp } from "@/lib/store";
 import { useLive } from "@/lib/live";
 import { errorMessage } from "@/lib/backend";
-import { daysLeft, formatAgo, formatBytes } from "@/lib/format";
+import { daysLeft, formatAgo, formatBytes, formatSpeed } from "@/lib/format";
+import { useSpeedTest } from "@/lib/speedtest";
 import type { ProxyItem, ProxyProvider } from "@/lib/types";
 import "./policy.css";
 import { SELECTABLE, displayName, isGroup, lastDelay, resolvePath, specialKind } from "./utils";
@@ -66,6 +70,68 @@ function GroupIcon({ group }: { group: ProxyItem }) {
         <st.icon size={16} strokeWidth={2} />
       )}
     </span>
+  );
+}
+
+/* ---------------- node speed test ---------------- */
+
+/** Download-speed chip on a node tile: hover to test, live progress while running, then the result. */
+function SpeedChip({ name, onAccent }: { name: string; onAccent: boolean }) {
+  const t = useT();
+  const run = useSpeedTest((s) => (s.running?.node === name ? s.running : null));
+  const result = useSpeedTest((s) => s.results[name]);
+  const error = useSpeedTest((s) => s.errors[name]);
+  const otherBusy = useSpeedTest((s) => !!s.running && s.running.node !== name);
+  const start = useSpeedTest((s) => s.start);
+  const cancel = useSpeedTest((s) => s.cancel);
+
+  let cls = "idle";
+  let label: React.ReactNode = t("policy.speedTest");
+  let tip = t("policy.speedTestTip");
+  if (run) {
+    cls = "running";
+    label = run.bytesPerSec ? formatSpeed(run.bytesPerSec) : t("policy.speedConnecting");
+    tip = t("policy.speedRunningTip");
+  } else if (result) {
+    cls = "done";
+    label = formatSpeed(result.bytesPerSec);
+    tip = t(result.partial ? "policy.speedResultPartialTip" : "policy.speedResultTip", {
+      mbps: ((result.bytesPerSec * 8) / 1e6).toFixed(1),
+      size: formatBytes(result.downloaded),
+      secs: (result.elapsedMs / 1000).toFixed(1),
+      ttfb: result.ttfbMs,
+    });
+  } else if (error) {
+    cls = "err";
+    label = t("policy.speedFailed");
+    tip = `${error}\n${t("policy.speedRetry")}`;
+  }
+  if (otherBusy) tip = t("policy.speedBusy");
+  return (
+    <button
+      className={cx("pl-speed", cls, onAccent && "on-accent")}
+      title={tip}
+      disabled={otherBusy}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (run) cancel();
+        else start(name);
+      }}
+    >
+      <ArrowDownToLine size={10} strokeWidth={2.4} />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function SpeedBar({ name }: { name: string }) {
+  const run = useSpeedTest((s) => (s.running?.node === name ? s.running : null));
+  if (!run) return null;
+  const pct = run.total ? Math.min(100, (run.downloaded / run.total) * 100) : 0;
+  return (
+    <div className={cx("pl-nprogress", !run.total && "waiting")}>
+      <span style={{ width: `${pct}%` }} />
+    </div>
   );
 }
 
@@ -96,13 +162,28 @@ function NodeTile({
   const special = specialKind(name, item);
   const nested = isGroup(item);
   const nestedNow = nested ? resolvePath(name, proxies).slice(-1)[0] : undefined;
+  const coreRunning = useApp((s) => s.core.state === "running");
+  // one leaf node at a time; groups, REJECT and PASS can't carry a download
+  const canSpeed = coreRunning && !nested && (!special || special === "direct");
+  const speedBusy = useSpeedTest((s) => !!s.running);
+  const startSpeed = useSpeedTest((s) => s.start);
   return (
     <div
       className={cx("pl-node", selectable && "selectable", selected && "selected")}
       onClick={selectable ? onSelect : undefined}
+      onContextMenu={(e) => {
+        const items: MenuEntry[] = [];
+        if (canSpeed)
+          items.push({ label: t("policy.speedTestMenu"), icon: <ArrowDownToLine size={13} />, disabled: speedBusy, onClick: () => startSpeed(name) });
+        if (!special) items.push({ label: t("policy.latencyTestMenu"), icon: <Zap size={13} />, onClick: onTest });
+        if (items.length) openContextMenu(e, items);
+      }}
       title={name}
     >
-      <div className="pl-nname">{displayName(name)}</div>
+      <div className="pl-nhead">
+        <div className="pl-nname">{displayName(name)}</div>
+        {canSpeed && <SpeedChip name={name} onAccent={selected} />}
+      </div>
       <div className="pl-nfoot">
         <span className="pl-ntype">
           {nested && <Layers size={10} />}
@@ -121,6 +202,7 @@ function NodeTile({
           />
         )}
       </div>
+      {canSpeed && <SpeedBar name={name} />}
     </div>
   );
 }

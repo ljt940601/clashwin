@@ -364,6 +364,8 @@ pub struct AppSettings {
     pub policy: PolicySettings,
     pub delay_test_url: String,
     pub delay_timeout: u32,
+    /// Data downloaded per node speed test, in MB (5 / 10 / 25 / 50).
+    pub speed_test_size_mb: u32,
     pub sidebar_collapsed: bool,
     pub engine: EngineSettings,
 }
@@ -393,6 +395,7 @@ impl Default for AppSettings {
             policy: PolicySettings::default(),
             delay_test_url: s("https://www.gstatic.com/generate_204"),
             delay_timeout: 5000,
+            speed_test_size_mb: 10,
             sidebar_collapsed: false,
             engine: EngineSettings::default(),
         }
