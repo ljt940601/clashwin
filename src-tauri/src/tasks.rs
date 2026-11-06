@@ -11,7 +11,7 @@ use tokio_tungstenite::tungstenite::{client::IntoClientRequest, Message};
 use crate::state::state;
 use crate::stats::ConnSample;
 use crate::util::now_ms;
-use crate::{cmds, tray, winutil};
+use crate::{cmds, tray, updates, winutil};
 
 pub fn spawn_all(app: &AppHandle) {
     let a = app.clone();
@@ -30,6 +30,38 @@ pub fn spawn_all(app: &AppHandle) {
     tauri::async_runtime::spawn(async move { wifi_loop(a).await });
     let a = app.clone();
     tauri::async_runtime::spawn(async move { editor_watch_loop(a).await });
+    let a = app.clone();
+    tauri::async_runtime::spawn(async move { update_check_loop(a).await });
+}
+
+/// Look for a new ClashWin release a little after launch, then twice a day.
+async fn update_check_loop(app: AppHandle) {
+    use tauri::Emitter;
+    sleep(Duration::from_secs(45)).await;
+    let mut notified: Option<String> = None;
+    loop {
+        let st = state(&app);
+        if st.settings.read().auto_check_update {
+            let current = app.package_info().version.to_string();
+            match updates::check_app(&st, &current).await {
+                Ok(info) if info.has_update => {
+                    let _ = app.emit("app://update-available", &info);
+                    if notified.as_deref() != Some(info.latest.as_str()) {
+                        st.notify(
+                            &app,
+                            "info",
+                            &format!("发现新版本 ClashWin {}，可在 设置 → 更新 中安装。", info.latest),
+                            &format!("ClashWin {} is available. Install it from Settings → Updates.", info.latest),
+                        );
+                        notified = Some(info.latest.clone());
+                    }
+                }
+                Ok(_) => {}
+                Err(e) => log::info!("app update check failed: {e}"),
+            }
+        }
+        sleep(Duration::from_secs(12 * 3600)).await;
+    }
 }
 
 async fn startup(app: AppHandle) {

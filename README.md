@@ -44,6 +44,10 @@ npx tauri build      # 打包 NSIS 安装程序
 
 发布：在 GitHub 的 Actions 页面手动运行 **Release** 工作流（或推送 `v*` 标签），会在 Windows 上构建 NSIS 安装包并发布到 Releases。
 
+应用内更新：「设置 → 更新」读取本仓库（`ljt940601/clashwin`，见 `src-tauri/src/updates.rs` 的 `APP_REPO`）的 GitHub Releases。版本号取自标签（`v0.2.0`），安装包按文件名 `*_x64-setup.exe` 识别，发布说明会显示为更新日志卡片。安装时以被动模式运行安装包（`/P /UPDATE /R`），装完自动重新打开 ClashWin。
+
+下载源：内核和安装包可以经 GitHub 镜像（ghfast.top 等，可自定义）下载，「自动选择」会测速后用最快的。只有 GitHub 公布了 SHA-256 的文件才会走镜像，下载后核对校验值，不一致就丢弃并换下一个来源。
+
 ## 与 ClashMac 的差异
 
 - **增强模式（TUN）**：Windows 创建虚拟网卡需要管理员权限。可以在「设置 → 权限」安装辅助任务（一次授权，之后以管理员身份自动启动），或临时以管理员身份重启。

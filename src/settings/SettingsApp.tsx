@@ -1,6 +1,6 @@
 import React from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { Info, Lock, Settings as Gear, SlidersHorizontal } from "lucide-react";
+import { CircleArrowUp, Info, Lock, Settings as Gear, SlidersHorizontal } from "lucide-react";
 import "./settings.css";
 import { useT } from "@/i18n";
 import { listen } from "@/lib/backend";
@@ -9,12 +9,14 @@ import { WindowControls } from "@/components/layout/WindowControls";
 import GeneralTab from "./GeneralTab";
 import PermissionsTab from "./PermissionsTab";
 import AdvancedTab from "./AdvancedTab";
+import UpdatesTab from "./UpdatesTab";
 import AboutTab from "./AboutTab";
 
 const TABS = [
   { id: "general", key: "settings.tabGeneral", icon: Gear },
   { id: "permissions", key: "settings.tabPermissions", icon: Lock },
   { id: "advanced", key: "settings.tabAdvanced", icon: SlidersHorizontal },
+  { id: "updates", key: "settings.tabUpdates", icon: CircleArrowUp },
   { id: "about", key: "settings.tabAbout", icon: Info },
 ] as const;
 
@@ -62,6 +64,7 @@ export default function SettingsApp() {
             <Route path="/settings/general" element={<GeneralTab />} />
             <Route path="/settings/permissions" element={<PermissionsTab />} />
             <Route path="/settings/advanced" element={<AdvancedTab />} />
+            <Route path="/settings/updates" element={<UpdatesTab />} />
             <Route path="/settings/about" element={<AboutTab />} />
             <Route path="*" element={<Navigate to="/settings/general" replace />} />
           </Routes>

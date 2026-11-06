@@ -14,6 +14,7 @@ use crate::profiles::{self, Profile};
 use crate::settings::AppSettings;
 use crate::state::{state, AppState};
 use crate::stats::{HistoryInfo, RouteAgg, StatsPeriod, StatsSummary};
+use crate::updates::{self, local_proxy};
 use crate::util::{now_ms, AppError, Res};
 use crate::{admin, winutil, windows};
 
@@ -185,20 +186,96 @@ pub async fn local_location() -> Res<LocalLocation> {
     }))
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AppUpdate {
-    has_update: bool,
-    latest: String,
-    url: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    notes: Option<String>,
-}
+/* ======================= Update center ======================= */
 
 #[tauri::command]
-pub async fn check_app_update(app: AppHandle) -> Res<AppUpdate> {
-    // No update server yet: report the running version as latest.
-    Ok(AppUpdate { has_update: false, latest: app.package_info().version.to_string(), url: "https://github.com".into(), notes: None })
+pub async fn check_app_update(app: AppHandle) -> Res<updates::AppUpdateInfo> {
+    let st = state(&app);
+    let info = updates::check_app(&st, &app.package_info().version.to_string()).await?;
+    if info.has_update {
+        let _ = app.emit("app://update-available", &info);
+    }
+    Ok(info)
+}
+
+/// Result of the last app update check in this session (startup check included).
+#[tauri::command]
+pub async fn app_update_cached() -> Res<Option<updates::AppUpdateInfo>> {
+    Ok(updates::cached_check())
+}
+
+fn app_progress(app: &AppHandle, stage: &str, downloaded: u64, total: u64, message: Option<String>) {
+    let _ = app.emit("app://update-progress", DownloadProgress { stage: stage.into(), downloaded, total, message });
+}
+
+/// Download the newest installer, start it in passive mode (it restarts ClashWin when
+/// done) and quit so the files can be replaced.
+#[tauri::command]
+pub async fn install_app_update(app: AppHandle) -> Res<()> {
+    let st = state(&app);
+    let current = app.package_info().version.to_string();
+    app_progress(&app, "checking", 0, 0, None);
+    let result: Res<std::path::PathBuf> = async {
+        let info = match updates::cached_check() {
+            Some(i) if i.has_update => i,
+            _ => updates::check_app(&st, &current).await?,
+        };
+        if !info.has_update {
+            return Err(AppError::new("UP_TO_DATE", format!("ClashWin {current} is up to date")));
+        }
+        let asset = info
+            .releases
+            .iter()
+            .find(|r| r.version == info.latest)
+            .and_then(|r| r.asset.clone())
+            .ok_or_else(|| AppError::not_found("No Windows installer in the latest release"))?;
+        let app2 = app.clone();
+        let bytes = updates::download_asset(&st, &asset.url, asset.size, asset.sha256.as_deref(), move |d, t| {
+            app_progress(&app2, "downloading", d, t, None)
+        })
+        .await?;
+        let dir = updates::installer_dir();
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir)?;
+        let path = dir.join(core::sanitize(&asset.name));
+        std::fs::write(&path, &bytes)?;
+        Ok(path)
+    }
+    .await;
+    let path = match result {
+        Ok(p) => p,
+        Err(e) => {
+            app_progress(&app, "error", 0, 0, Some(e.message.clone()));
+            return Err(e);
+        }
+    };
+    app_progress(&app, "done", 1, 1, None);
+    // /P = passive (progress bar only), /UPDATE = keep the user's shortcuts as they are,
+    // /R = start ClashWin again when the install finishes.
+    std::process::Command::new(&path)
+        .args(["/P", "/UPDATE", "/R"])
+        .spawn()
+        .map_err(|e| AppError::io(format!("Could not start the installer: {e}")))?;
+    log::info!("started installer {}", path.display());
+    tauri::async_runtime::spawn(async move {
+        state(&app).cleanup();
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        app.exit(0);
+    });
+    Ok(())
+}
+
+/// Download sources in display order: direct GitHub, preset mirrors, the user's mirrors.
+#[tauri::command]
+pub async fn download_sources(app: AppHandle) -> Res<Vec<updates::DownloadSource>> {
+    Ok(updates::sources(&state(&app).settings()))
+}
+
+/// Time a small GitHub download through every source.
+#[tauri::command]
+pub async fn test_download_sources(app: AppHandle) -> Res<Vec<updates::SourceProbe>> {
+    let s = state(&app).settings();
+    Ok(updates::probe_all(&s, true).await)
 }
 
 #[tauri::command]
@@ -424,10 +501,6 @@ pub struct CoreUpdateInfo {
     notes: Option<String>,
 }
 
-fn local_proxy(st: &AppState) -> Option<String> {
-    st.core.is_running().then(|| format!("http://127.0.0.1:{}", st.settings.read().engine.network.mixed_port))
-}
-
 async fn release_with_fallback(st: &AppState, channel: &str) -> Res<core::ReleaseInfo> {
     match core::fetch_release(channel, None).await {
         Ok(r) => Ok(r),
@@ -477,13 +550,7 @@ pub async fn install_core(app: &AppHandle, channel: &str) -> Res<CoreStatus> {
         let rel = release_with_fallback(&st, channel).await?;
         let app2 = app.clone();
         let cb = move |d: u64, t: u64| progress(&app2, "downloading", d, t, None);
-        let zip = match core::download(&rel.asset_url, None, cb.clone()).await {
-            Ok(z) => z,
-            Err(e) => match local_proxy(&st) {
-                Some(p) => core::download(&rel.asset_url, Some(&p), cb).await.map_err(|_| e)?,
-                None => return Err(e),
-            },
-        };
+        let zip = updates::download_asset(&st, &rel.asset_url, rel.size, rel.sha256.as_deref(), cb).await?;
         progress(app, "extracting", zip.len() as u64, zip.len() as u64, None);
         let bin = tokio::task::spawn_blocking(move || core::extract_exe(&zip)).await.map_err(|e| AppError::io(e.to_string()))??;
         // replace the binary (stop the core first: Windows locks running executables)
@@ -567,6 +634,20 @@ pub async fn core_rollback(app: AppHandle, version: String) -> Res<CoreStatus> {
     }
     st.emit_core(&app);
     st.start_core(&app).await
+}
+
+/// Remove a kept core version (not the one in use).
+#[tauri::command]
+pub async fn core_delete_cached(app: AppHandle, version: String) -> Res<()> {
+    let st = state(&app);
+    if st.core.status().version.as_deref() == Some(version.as_str()) {
+        return Err(AppError::new("IN_USE", "This version is the one in use"));
+    }
+    let dir = st.paths.versions.join(core::sanitize(&version));
+    if dir.exists() {
+        std::fs::remove_dir_all(&dir)?;
+    }
+    Ok(())
 }
 
 #[tauri::command]

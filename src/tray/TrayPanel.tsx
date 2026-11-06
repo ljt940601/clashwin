@@ -31,7 +31,7 @@ import { useProviderSubs } from "@/lib/providerSubs";
 import { detectCountry, flagEmoji, hasFlag } from "@/lib/countries";
 import { TrafficChart } from "@/components/charts/TrafficChart";
 import { LatencyBadge, Progress, Spinner, Tag, Toggle, cx, toast, usageColor } from "@/components/ui";
-import type { OutboundMode, ProxyItem } from "@/lib/types";
+import type { AppUpdateInfo, OutboundMode, ProxyItem } from "@/lib/types";
 import { copyText, lanAddress, shellExport } from "./shell";
 import { QuickRuleDialog } from "./QuickRuleDialog";
 
@@ -250,6 +250,19 @@ export default function TrayPanel() {
     loadProxies();
   }, [core.state, core.pid, settings.activeProfileId, settings.outboundMode, loadProxies]);
 
+  // a newer ClashWin found by the background check (or a check in Settings → Updates)
+  const [newVersion, setNewVersion] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    backend
+      .appUpdateCached()
+      .then((c) => setNewVersion(c?.hasUpdate ? c.latest : null))
+      .catch(() => {});
+    const off = listen<AppUpdateInfo>("app://update-available", (i) => setNewVersion(i.hasUpdate ? i.latest : null));
+    return () => {
+      off.then((f) => f());
+    };
+  }, []);
+
   React.useEffect(() => {
     if (settings.engine.network.allowLan) lanAddress(settings.engine.network.bindAddress).then(setLanIp);
     else setLanIp(null);
@@ -457,7 +470,7 @@ export default function TrayPanel() {
         openSettings("general");
       } else if (k === "u") {
         handled();
-        openSettings("about");
+        openSettings("updates");
       } else if (k === "q") {
         handled();
         backend.quit();
@@ -803,9 +816,12 @@ export default function TrayPanel() {
         <div className="tr-sep" />
 
         {/* 11. updates */}
-        <div className="tr-row hoverable" onClick={() => openSettings("about")} {...plainRowProps}>
-          <span className="tr-row-label">{t("tray.checkUpdates")}</span>
-          <span className="tr-row-right tr-hint">Ctrl+U</span>
+        <div className="tr-row hoverable" onClick={() => openSettings("updates")} {...plainRowProps}>
+          <span className="tr-row-label">{newVersion ? t("tray.newVersion", { v: newVersion }) : t("tray.checkUpdates")}</span>
+          <span className="tr-row-right tr-hint">
+            {newVersion && <span className="tr-update-dot" />}
+            Ctrl+U
+          </span>
         </div>
 
         <div className="tr-sep" />

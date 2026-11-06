@@ -236,3 +236,243 @@
   font-size: 11px;
   color: var(--text-dim);
 }
+
+/* ---------- updates ---------- */
+.up-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  background: rgba(127, 127, 127, 0.16);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.up-badge.accent {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.up-badge.warn {
+  background: rgba(255, 159, 10, 0.15);
+  color: var(--orange);
+}
+.up-version {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.up-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.up-cards-empty {
+  display: flex;
+  justify-content: center;
+  padding: 18px 0;
+  border-radius: 10px;
+  background: var(--bg-group);
+  border: 1px solid var(--border);
+}
+.up-card {
+  padding: 12px 14px 10px;
+  border-radius: 10px;
+  background: var(--bg-group);
+  border: 1px solid var(--border);
+}
+.up-card.latest {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.up-card.compact {
+  width: 100%;
+  padding: 10px 12px 8px;
+  background: var(--bg-input);
+}
+.up-card-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 6px;
+}
+.up-card-ver {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.up-card-date {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.up-card-body {
+  position: relative;
+  user-select: text;
+}
+.up-card-body.clamped {
+  max-height: 150px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent);
+  mask-image: linear-gradient(to bottom, #000 70%, transparent);
+}
+.up-card-body.scroll {
+  max-height: 180px;
+  overflow: auto;
+}
+.up-card-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 14px;
+  margin-top: 6px;
+}
+.up-card-foot:empty {
+  display: none;
+}
+.up-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.up-link:hover {
+  text-decoration: underline;
+}
+
+.up-source {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.up-source + .up-source {
+  border-top: 1px solid var(--separator);
+}
+.up-source:hover:not(.add) {
+  background: var(--bg-row-hover);
+}
+.up-source.add {
+  cursor: default;
+}
+.up-radio {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  background: var(--bg-input);
+  transition: border-color 0.12s, border-width 0.12s;
+}
+.up-source.on .up-radio {
+  border: 4.5px solid var(--accent);
+  background: #fff;
+}
+.up-source-main {
+  flex: 1;
+  min-width: 0;
+}
+.up-source-label {
+  font-size: 13px;
+  color: var(--text-1);
+}
+.up-source-desc {
+  margin-top: 1px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.up-source-input {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.up-source-input::placeholder {
+  font-family: var(--font);
+  color: var(--text-faint);
+}
+.up-source-error {
+  padding: 0 12px 8px 37px;
+  font-size: 11.5px;
+  color: var(--red);
+}
+
+/* ---------- release notes (Markdown) ---------- */
+.md {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-2);
+  word-break: break-word;
+}
+.md-h {
+  margin: 8px 0 3px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+.md-h:first-child {
+  margin-top: 0;
+}
+.md-h1 {
+  font-size: 14px;
+}
+.md-h2,
+.md-h3 {
+  font-size: 12.5px;
+}
+.md-p {
+  margin: 3px 0;
+}
+.md-li {
+  position: relative;
+}
+.md-bullet {
+  position: absolute;
+  margin-left: -14px;
+  color: var(--text-dim);
+}
+.md code {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+.md-code {
+  margin: 5px 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--bg-input);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  overflow-x: auto;
+}
+.md-hr {
+  border: 0;
+  border-top: 1px solid var(--separator);
+  margin: 8px 0;
+}
+.md a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.md a:hover {
+  text-decoration: underline;
+}
+.md strong {
+  color: var(--text-1);
+  font-weight: 600;
+}

@@ -15,6 +15,7 @@ pub mod sysproxy;
 pub mod tasks;
 pub mod tray;
 pub mod traypopup;
+pub mod updates;
 pub mod util;
 pub mod windows;
 pub mod winutil;
@@ -99,6 +100,10 @@ pub fn run() {
             cmds::node_countries,
             cmds::local_location,
             cmds::check_app_update,
+            cmds::install_app_update,
+            cmds::app_update_cached,
+            cmds::download_sources,
+            cmds::test_download_sources,
             cmds::install_cli,
             cmds::geo_db_status,
             cmds::write_text_file,
@@ -120,6 +125,7 @@ pub fn run() {
             cmds::core_install,
             cmds::core_cached_versions,
             cmds::core_rollback,
+            cmds::core_delete_cached,
             cmds::core_log_tail,
             // helper
             cmds::helper_status,

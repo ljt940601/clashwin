@@ -159,6 +159,8 @@ export function ListEditor({
   const [draft, setDraft] = React.useState("");
   const [bulk, setBulk] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const itemsRef = React.useRef<HTMLDivElement>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
 
   const add = () => {
     const items = draft
@@ -209,14 +211,40 @@ export function ListEditor({
     );
   }
 
+  // Keyboard: items are focusable; Delete/Backspace removes the focused one, arrows move.
+  const focusItem = (i: number) =>
+    requestAnimationFrame(() => {
+      const items = itemsRef.current?.querySelectorAll<HTMLElement>(".en-list-item");
+      if (items && i >= 0 && i < items.length) items[i].focus();
+      else inputRef.current?.focus();
+    });
+  const onItemKey = (e: React.KeyboardEvent, i: number) => {
+    if (e.key === "Delete" || e.key === "Backspace") {
+      e.preventDefault();
+      onChange(value.filter((_, j) => j !== i));
+      focusItem(Math.min(i, value.length - 2));
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      focusItem(i + 1);
+    } else if (e.key === "ArrowUp" && i > 0) {
+      e.preventDefault();
+      focusItem(i - 1);
+    }
+  };
+
   return (
     <div className="en-list">
       {value.length > 0 && (
-        <div className="en-list-items" style={{ maxHeight }}>
+        <div className="en-list-items" style={{ maxHeight }} ref={itemsRef}>
           {value.map((it, i) => (
-            <div key={`${it}-${i}`} className="en-list-item">
+            <div key={`${it}-${i}`} className="en-list-item" tabIndex={0} onKeyDown={(e) => onItemKey(e, i)}>
               <span className="en-list-text selectable">{it}</span>
-              <button className="en-list-remove" title={t("common.delete")} onClick={() => onChange(value.filter((_, j) => j !== i))}>
+              <button
+                className="en-list-remove"
+                tabIndex={-1}
+                title={t("engine.removeItem")}
+                onClick={() => onChange(value.filter((_, j) => j !== i))}
+              >
                 <X size={12} />
               </button>
             </div>
@@ -226,6 +254,7 @@ export function ListEditor({
       <div className="en-list-add">
         <ListPlus size={13} className="en-list-add-icon" />
         <input
+          ref={inputRef}
           className="en-list-input"
           value={draft}
           placeholder={placeholder ?? t("engine.addItem")}
@@ -234,7 +263,13 @@ export function ListEditor({
             setDraft(e.target.value);
             setError(null);
           }}
-          onKeyDown={(e) => e.key === "Enter" && add()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") add();
+            else if (e.key === "ArrowUp" && !draft && value.length) {
+              e.preventDefault();
+              focusItem(value.length - 1);
+            }
+          }}
         />
         {extraButtons}
         <Tooltip content={t("common.add")}>
