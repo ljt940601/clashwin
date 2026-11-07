@@ -1,6 +1,6 @@
 /**
  * Node download speed tests (one node at a time). Results live for the session so they
- * survive page changes.
+ * survive page changes; the policy page shows a fresh result briefly, then on hover.
  */
 import { create } from "zustand";
 import { backend, errorCode, errorMessage, listen } from "./backend";
@@ -11,7 +11,7 @@ interface SpeedTestState {
   running: SpeedProgress | null;
   results: Record<string, SpeedResult>;
   /** last failure per node (cleared by a successful test) */
-  errors: Record<string, string>;
+  errors: Record<string, { message: string; at: number }>;
   start: (node: string) => Promise<void>;
   cancel: () => void;
 }
@@ -39,7 +39,7 @@ export const useSpeedTest = create<SpeedTestState>((set, get) => ({
         return { results: { ...s.results, [node]: r }, errors };
       });
     } catch (e) {
-      if (errorCode(e) !== "CANCELLED") set((s) => ({ errors: { ...s.errors, [node]: errorMessage(e) } }));
+      if (errorCode(e) !== "CANCELLED") set((s) => ({ errors: { ...s.errors, [node]: { message: errorMessage(e), at: Date.now() } } }));
     } finally {
       set({ running: null });
     }
