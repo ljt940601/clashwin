@@ -50,9 +50,23 @@ proxies["CN"] = group("CN", "Selector", ["DIRECT", "OUTCN"], "DIRECT");
 proxies["MATCH"] = group("MATCH", "Selector", ["OUTCN", "DIRECT", ...nodeNames], "🇯🇵 OC JP1-anytls");
 proxies["AdBlock"] = group("AdBlock", "Selector", ["REJECT", "REJECT-DROP", "DIRECT"], "REJECT");
 proxies["Fallback"] = group("Fallback", "Fallback", nodeNames.slice(3, 9), "🇸🇬 OC SG1-anytls", true);
+// nodes from mounted subscriptions carry a "[profile name] " prefix (config.rs additional-prefix)
+const MERGED: [string, string, number][] = [
+  ["[车位4-FaZRUMWz] vless-4", "Vless", 143],
+  ["[Clash_1793799697] 台湾 01 | 家宽", "Vmess", 154],
+  ["[Clash_1793799697] 新加坡 02 | IPLC", "Vmess", 133],
+  ["[Clash_1793799697] 日本 03 | 原生", "Vmess", 127],
+  ["[Clash_1793799697] 美国 04 | 洛杉矶", "Vmess", 540],
+  ["[Clash_1793799697] 香港 05 | BGP", "Vmess", 258],
+  ["[Clash_1793799697] 新加坡 06", "Vmess", 5000],
+  ["[Clash_1793799697] 香港 07 | 0.5x", "Vmess", 168],
+  ["[Clash_1793799697] 香港 08 | 专线", "Trojan", 0],
+];
+for (const [name, type, d] of MERGED) proxies[name] = { name, type, udp: type !== "Trojan", history: d ? hist(d) : [], alive: d > 0 };
+proxies["WiseOneCloud"] = group("WiseOneCloud", "Selector", ["Auto", "🇺🇸 GCP US-anytls", ...MERGED.map((m) => m[0])], MERGED[0][0]);
 // the app's hidden node speed-test group (filtered out by mihomo.proxies())
 proxies["ClashWin-SpeedTest"] = { ...group("ClashWin-SpeedTest", "Selector", ["DIRECT", ...nodeNames], "DIRECT"), hidden: true };
-proxies["GLOBAL"] = group("GLOBAL", "Selector", ["DIRECT", "REJECT", "OUTCN", "Auto", "Streaming", "CN", "MATCH", "AdBlock", "ClashWin-SpeedTest", ...nodeNames], "OUTCN");
+proxies["GLOBAL"] = group("GLOBAL", "Selector", ["DIRECT", "REJECT", "WiseOneCloud", "OUTCN", "Auto", "Streaming", "CN", "MATCH", "AdBlock", "ClashWin-SpeedTest", ...nodeNames], "OUTCN");
 
 /* ---------------- Rules ---------------- */
 const RULES: [string, string, string, number][] = [

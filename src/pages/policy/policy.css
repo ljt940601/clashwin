@@ -227,6 +227,27 @@
   white-space: nowrap;
 }
 
+/* subscription a merged node comes from, after its type */
+.pl-ntype-fixed {
+  flex-shrink: 0;
+}
+.pl-nsource {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: rgba(127, 127, 127, 0.12);
+  color: var(--text-3);
+  font-size: 10px;
+  line-height: 15px;
+}
+.pl-node.selected .pl-nsource {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
 /* ---------- node speed test ---------- */
 /* Opaque tile colour (the tile itself is a translucent tint over the group card), so the
    floating chip can cover the end of the name cleanly. */

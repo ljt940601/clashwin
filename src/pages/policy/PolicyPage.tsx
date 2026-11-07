@@ -46,7 +46,7 @@ import { daysLeft, formatAgo, formatBytes, formatSpeed } from "@/lib/format";
 import { useSpeedTest } from "@/lib/speedtest";
 import type { ProxyItem, ProxyProvider } from "@/lib/types";
 import "./policy.css";
-import { SELECTABLE, displayName, isGroup, lastDelay, resolvePath, specialKind } from "./utils";
+import { SELECTABLE, displayName, isGroup, lastDelay, resolvePath, specialKind, splitSource } from "./utils";
 
 /* ---------------- helpers ---------------- */
 
@@ -190,6 +190,8 @@ function NodeTile({
   const canSpeed = coreRunning && !nested && (!special || special === "direct");
   const speedBusy = useSpeedTest((s) => !!s.running);
   const startSpeed = useSpeedTest((s) => s.start);
+  // "[subscription] node": the node part leads, the subscription goes to the second line
+  const { source, name: shortName } = nested ? { source: undefined, name } : splitSource(name);
   return (
     <div
       className={cx("pl-node", selectable && "selectable", selected && "selected")}
@@ -204,14 +206,15 @@ function NodeTile({
       title={name}
     >
       <div className="pl-nhead">
-        <div className="pl-nname">{displayName(name)}</div>
+        <div className="pl-nname">{displayName(shortName)}</div>
         {canSpeed && <SpeedChip name={name} onAccent={selected} />}
       </div>
       <div className="pl-nfoot">
         <span className="pl-ntype">
           {nested && <Layers size={10} />}
-          <span className="ellipsis">{nested && nestedNow ? `${item!.type} · ${nestedNow}` : item?.type ?? "—"}</span>
+          <span className={cx("ellipsis", source && "pl-ntype-fixed")}>{nested && nestedNow ? `${item!.type} · ${nestedNow}` : item?.type ?? "—"}</span>
           {item?.udp && !special && !nested && <span className="pl-udp">UDP</span>}
+          {source && <span className="pl-nsource">{source}</span>}
         </span>
         {special ? (
           <Tag>{t(`policy.${special}`)}</Tag>

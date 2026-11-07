@@ -47,6 +47,15 @@ export function resolvePath(name: string, proxies: Record<string, ProxyItem>): s
 }
 
 /** Name with a flag prefix when the name has none but a country is detectable */
+/**
+ * Nodes from subscriptions merged into a profile are named "[subscription] node"
+ * (additional-prefix in config.rs). Split that off so the node part can lead.
+ */
+export function splitSource(name: string): { source?: string; name: string } {
+  const m = name.match(/^\[([^\]]{1,48})\]\s*(\S.*)$/);
+  return m ? { source: m[1], name: m[2] } : { name };
+}
+
 export function displayName(name: string): string {
   if (hasFlag(name) || SPECIAL[name]) return name;
   const cc = detectCountry(name);
