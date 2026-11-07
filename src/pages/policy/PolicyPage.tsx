@@ -46,7 +46,7 @@ import { daysLeft, formatAgo, formatBytes, formatSpeed } from "@/lib/format";
 import { useSpeedTest } from "@/lib/speedtest";
 import type { ProxyItem, ProxyProvider } from "@/lib/types";
 import "./policy.css";
-import { SELECTABLE, displayName, isGroup, lastDelay, resolvePath, specialKind } from "./utils";
+import { SELECTABLE, displayName, isGroup, lastDelay, resolvePath, specialKind, splitSource } from "./utils";
 
 /* ---------------- helpers ---------------- */
 
@@ -75,7 +75,27 @@ function GroupIcon({ group }: { group: ProxyItem }) {
 
 /* ---------------- node speed test ---------------- */
 
-/** Download-speed chip on a node tile: hover to test, live progress while running, then the result. */
+/** How long a finished test stays on the tile before it only shows on hover. */
+const SPEED_FRESH_MS = 5000;
+
+/** True for SPEED_FRESH_MS after `at`. */
+function useFresh(at: number | undefined) {
+  const [fresh, setFresh] = React.useState(() => !!at && Date.now() - at < SPEED_FRESH_MS);
+  React.useEffect(() => {
+    const left = at ? SPEED_FRESH_MS - (Date.now() - at) : 0;
+    setFresh(left > 0);
+    if (left <= 0) return;
+    const id = window.setTimeout(() => setFresh(false), left);
+    return () => window.clearTimeout(id);
+  }, [at]);
+  return fresh;
+}
+
+/**
+ * Download-speed chip on a node tile. Floats over the end of the name so it never takes
+ * room from it: visible while testing and briefly afterwards, otherwise on hover (with the
+ * last result, if any). Click to test, again to retest, or to stop a running test.
+ */
 function SpeedChip({ name, onAccent }: { name: string; onAccent: boolean }) {
   const t = useT();
   const run = useSpeedTest((s) => (s.running?.node === name ? s.running : null));
@@ -84,6 +104,9 @@ function SpeedChip({ name, onAccent }: { name: string; onAccent: boolean }) {
   const otherBusy = useSpeedTest((s) => !!s.running && s.running.node !== name);
   const start = useSpeedTest((s) => s.start);
   const cancel = useSpeedTest((s) => s.cancel);
+  // the most recent outcome wins (a failed retest after a success shows the failure)
+  const failed = !!error && (!result || error.at > result.at);
+  const fresh = useFresh(failed ? error!.at : result?.at);
 
   let cls = "idle";
   let label: React.ReactNode = t("policy.speedTest");
@@ -92,6 +115,10 @@ function SpeedChip({ name, onAccent }: { name: string; onAccent: boolean }) {
     cls = "running";
     label = run.bytesPerSec ? formatSpeed(run.bytesPerSec) : t("policy.speedConnecting");
     tip = t("policy.speedRunningTip");
+  } else if (failed) {
+    cls = "err";
+    label = t("policy.speedFailed");
+    tip = `${error!.message}\n${t("policy.speedRetry")}`;
   } else if (result) {
     cls = "done";
     label = formatSpeed(result.bytesPerSec);
@@ -101,15 +128,11 @@ function SpeedChip({ name, onAccent }: { name: string; onAccent: boolean }) {
       secs: (result.elapsedMs / 1000).toFixed(1),
       ttfb: result.ttfbMs,
     });
-  } else if (error) {
-    cls = "err";
-    label = t("policy.speedFailed");
-    tip = `${error}\n${t("policy.speedRetry")}`;
   }
   if (otherBusy) tip = t("policy.speedBusy");
   return (
     <button
-      className={cx("pl-speed", cls, onAccent && "on-accent")}
+      className={cx("pl-speed", cls, (run || fresh) && "shown", onAccent && "on-accent")}
       title={tip}
       disabled={otherBusy}
       onClick={(e) => {
@@ -167,6 +190,8 @@ function NodeTile({
   const canSpeed = coreRunning && !nested && (!special || special === "direct");
   const speedBusy = useSpeedTest((s) => !!s.running);
   const startSpeed = useSpeedTest((s) => s.start);
+  // "[subscription] node": the node part leads, the subscription goes to the second line
+  const { source, name: shortName } = nested ? { source: undefined, name } : splitSource(name);
   return (
     <div
       className={cx("pl-node", selectable && "selectable", selected && "selected")}
@@ -181,14 +206,15 @@ function NodeTile({
       title={name}
     >
       <div className="pl-nhead">
-        <div className="pl-nname">{displayName(name)}</div>
+        <div className="pl-nname">{displayName(shortName)}</div>
         {canSpeed && <SpeedChip name={name} onAccent={selected} />}
       </div>
       <div className="pl-nfoot">
         <span className="pl-ntype">
           {nested && <Layers size={10} />}
-          <span className="ellipsis">{nested && nestedNow ? `${item!.type} · ${nestedNow}` : item?.type ?? "—"}</span>
+          <span className={cx("ellipsis", source && "pl-ntype-fixed")}>{nested && nestedNow ? `${item!.type} · ${nestedNow}` : item?.type ?? "—"}</span>
           {item?.udp && !special && !nested && <span className="pl-udp">UDP</span>}
+          {source && <span className="pl-nsource">{source}</span>}
         </span>
         {special ? (
           <Tag>{t(`policy.${special}`)}</Tag>

@@ -227,13 +227,52 @@
   white-space: nowrap;
 }
 
+/* subscription a merged node comes from, after its type */
+.pl-ntype-fixed {
+  flex-shrink: 0;
+}
+.pl-nsource {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: rgba(127, 127, 127, 0.12);
+  color: var(--text-3);
+  font-size: 10px;
+  line-height: 15px;
+}
+.pl-node.selected .pl-nsource {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
 /* ---------- node speed test ---------- */
+/* Opaque tile colour (the tile itself is a translucent tint over the group card), so the
+   floating chip can cover the end of the name cleanly. */
+.pl-node {
+  --pl-tile: color-mix(in srgb, #7f7f7f 8%, var(--bg-card));
+}
+.pl-node.selectable:hover {
+  --pl-tile: color-mix(in srgb, #7f7f7f 14%, var(--bg-card));
+}
+.pl-node.selected {
+  --pl-tile: var(--accent);
+}
+.pl-node.selected.selectable:hover {
+  --pl-tile: var(--accent-hover);
+}
 .pl-speed {
-  flex: none;
+  --chip: color-mix(in srgb, var(--teal) 16%, transparent);
+  position: absolute;
+  top: 8px;
+  right: 9px;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  height: 17px;
+  height: 18px;
   padding: 0 6px;
   border: 0;
   border-radius: 999px;
@@ -241,34 +280,41 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  background: color-mix(in srgb, var(--teal) 16%, transparent);
+  background: linear-gradient(var(--chip), var(--chip)) var(--pl-tile);
+  /* soft edge where it covers the name */
+  box-shadow: -10px 0 6px -2px var(--pl-tile);
   color: var(--teal);
-  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  /* hidden until hovered, testing, or just finished */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s, color 0.15s;
+}
+.pl-speed.shown,
+.pl-node:hover .pl-speed:not(:disabled),
+.pl-node:hover .pl-speed.done,
+.pl-node:hover .pl-speed.err {
+  opacity: 1;
+  pointer-events: auto;
 }
 .pl-speed:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--teal) 26%, transparent);
+  --chip: color-mix(in srgb, var(--teal) 28%, transparent);
 }
-/* not tested yet: only shown while hovering the tile */
 .pl-speed.idle {
-  opacity: 0;
-  background: rgba(127, 127, 127, 0.16);
+  --chip: rgba(127, 127, 127, 0.18);
   color: var(--text-2);
 }
-.pl-node:hover .pl-speed.idle:not(:disabled) {
-  opacity: 1;
-}
 .pl-speed.idle:hover:not(:disabled) {
-  background: rgba(127, 127, 127, 0.26);
+  --chip: rgba(127, 127, 127, 0.3);
 }
 .pl-speed.running {
-  background: var(--accent-soft);
+  --chip: var(--accent-soft);
   color: var(--accent);
 }
 .pl-speed.running svg {
   animation: pl-speed-bob 0.9s ease-in-out infinite;
 }
 .pl-speed.err {
-  background: color-mix(in srgb, var(--red) 14%, transparent);
+  --chip: color-mix(in srgb, var(--red) 15%, transparent);
   color: var(--red);
 }
 .pl-speed:disabled {
@@ -278,7 +324,7 @@
 .pl-speed.on-accent.idle,
 .pl-speed.on-accent.running,
 .pl-speed.on-accent.err {
-  background: rgba(255, 255, 255, 0.22);
+  --chip: rgba(255, 255, 255, 0.22);
   color: #fff;
 }
 @keyframes pl-speed-bob {
