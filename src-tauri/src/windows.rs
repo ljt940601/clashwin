@@ -120,19 +120,68 @@ pub fn open_settings(app: &AppHandle, tab: Option<String>) -> tauri::Result<()> 
         let _ = w.set_focus();
         return Ok(());
     }
-    let w = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App(format!("index.html#/settings/{tab}").into()))
-        .title("ClashWin Settings")
-        .inner_size(680.0, 560.0)
-        .background_color(window_bg(app))
-        .decorations(false)
-        .shadow(true)
-        .resizable(false)
-        .maximizable(false)
-        .center()
-        .visible(true)
-        .build()?;
+    let url = format!("index.html#/settings/{tab}");
+    // Settings is the only window created long after startup. A new WebView2 environment can
+    // fail by then (e.g. the WebView2 runtime updated in the background and the running
+    // browser process still holds the profile folder), so join the dashboard's environment.
+    // Built hidden and shown only once it exists, so a failed attempt doesn't flash.
+    let build = |share_env: bool| {
+        #[allow(unused_mut)]
+        let mut builder = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App(url.clone().into()))
+            .title("ClashWin Settings")
+            .inner_size(680.0, 560.0)
+            .background_color(window_bg(app))
+            .decorations(false)
+            .shadow(true)
+            .resizable(false)
+            .maximizable(false)
+            .center()
+            .visible(false);
+        #[cfg(windows)]
+        if share_env {
+            if let Some(env) = dashboard_webview_environment(app) {
+                builder = builder.with_environment(env.0);
+            }
+        }
+        #[cfg(not(windows))]
+        let _ = share_env;
+        builder.build()
+    };
+    let w = match build(true) {
+        Ok(w) => w,
+        Err(e) => {
+            log::warn!("settings window: {e}; retrying in a new WebView2 environment");
+            build(false)?
+        }
+    };
+    // Its close button only hides it, so record anything that really closes it.
+    w.on_window_event(|e| match e {
+        WindowEvent::CloseRequested { .. } => log::info!("settings window: close requested"),
+        WindowEvent::Destroyed => log::info!("settings window: destroyed"),
+        _ => {}
+    });
+    let _ = w.show();
     let _ = w.set_focus();
     Ok(())
+}
+
+/// The dashboard's WebView2 environment. COM objects aren't `Send`; this one is only carried
+/// from the main thread back to Tauri, which uses it on the main thread again.
+#[cfg(windows)]
+struct SharedEnvironment(webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Environment);
+#[cfg(windows)]
+unsafe impl Send for SharedEnvironment {}
+
+/// The WebView2 environment of the dashboard (created at startup), if it exists.
+#[cfg(windows)]
+fn dashboard_webview_environment(app: &AppHandle) -> Option<SharedEnvironment> {
+    let main = app.get_webview_window("main")?;
+    let (tx, rx) = std::sync::mpsc::channel();
+    main.with_webview(move |w| {
+        let _ = tx.send(SharedEnvironment(w.environment()));
+    })
+    .ok()?;
+    rx.recv_timeout(std::time::Duration::from_secs(2)).ok()
 }
 
 /* ---------------- tray popup ---------------- */

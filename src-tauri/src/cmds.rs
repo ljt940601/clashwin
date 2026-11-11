@@ -73,7 +73,7 @@ pub async fn open_dashboard(app: AppHandle, page: Option<String>) -> Res<()> {
 #[tauri::command]
 pub async fn open_settings(app: AppHandle, tab: Option<String>) -> Res<()> {
     windows::hide_tray_panel(&app);
-    windows::open_settings(&app, tab)?;
+    windows::open_settings(&app, tab).inspect_err(|e| log::error!("settings window: {e}"))?;
     Ok(())
 }
 
