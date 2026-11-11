@@ -8,6 +8,7 @@ pub mod core;
 pub mod geo;
 pub mod nodegeo;
 pub mod profiles;
+pub mod selftest;
 pub mod settings;
 pub mod speedtest;
 pub mod state;
@@ -83,6 +84,7 @@ pub fn run() {
             windows::create_tray_panel(&handle)?;
             tray::create(&handle)?;
             tasks::spawn_all(&handle);
+            selftest::start(&handle);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -93,6 +95,7 @@ pub fn run() {
             cmds::restart_as_admin,
             cmds::open_dashboard,
             cmds::open_settings,
+            selftest::selftest_point,
             cmds::hide_tray_panel,
             cmds::set_tray_panel_size,
             cmds::set_tray_panel_region,
