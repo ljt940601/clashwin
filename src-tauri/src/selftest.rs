@@ -221,9 +221,22 @@ mod imp {
         sleep_ms(12000);
         report(&app, "start", true);
         let mut hooked = false;
-        for round in 1..=3 {
+        for round in 1..=4 {
             log::info!("SELFTEST ===== round {round} =====");
-            focus_other_app();
+            if round == 4 {
+                // Dashboard open and focused, like a user working in ClashWin.
+                let a = app.clone();
+                let _ = app.run_on_main_thread(move || crate::windows::show_dashboard(&a, None));
+                sleep_ms(2500);
+                if let Some(h) = webview_hwnd(&app, "main") {
+                    let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+                    unsafe { GetWindowRect(h, &mut r) };
+                    click((r.left + r.right) / 2, r.top + 300, false);
+                    sleep_ms(500);
+                }
+            } else {
+                focus_other_app();
+            }
             report(&app, &format!("r{round} before"), false);
             open_popup(&app);
             report(&app, &format!("r{round} popup"), true);
