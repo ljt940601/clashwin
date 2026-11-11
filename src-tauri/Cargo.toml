@@ -51,6 +51,8 @@ sha2 = "0.10"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"
+# Same version as Tauri's, to share the dashboard's WebView2 environment (windows.rs)
+webview2-com = "0.39"
 windows-sys = { version = "0.59", features = [
   "Win32_Foundation",
   "Win32_Security",
