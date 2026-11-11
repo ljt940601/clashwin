@@ -1,6 +1,6 @@
 [package]
 name = "clashwin"
-version = "0.2.3"
+version = "0.2.4"
 description = "ClashWin - a native-feeling mihomo client for Windows"
 authors = ["ClashWin"]
 edition = "2021"
