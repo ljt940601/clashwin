@@ -267,7 +267,7 @@ mod imp {
 
         // Make every new WebView2 environment incompatible with the running browser process,
         // like after a background runtime update.
-        std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disable-features=msWebOOUI --lang=fr");
+        std::env::set_var("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER", r"C:\no-such-webview2-runtime");
         log::info!("SELFTEST ===== B: old code path, new environment =====");
         old_style_settings(&app);
         sleep_ms(800);
