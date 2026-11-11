@@ -131,6 +131,12 @@ pub fn open_settings(app: &AppHandle, tab: Option<String>) -> tauri::Result<()> 
         .center()
         .visible(true)
         .build()?;
+    // Its close button only hides it, so record anything that really closes it.
+    w.on_window_event(|e| match e {
+        WindowEvent::CloseRequested { .. } => log::info!("settings window: close requested"),
+        WindowEvent::Destroyed => log::info!("settings window: destroyed"),
+        _ => {}
+    });
     let _ = w.set_focus();
     Ok(())
 }

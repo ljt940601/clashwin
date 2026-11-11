@@ -8,7 +8,6 @@ pub mod core;
 pub mod geo;
 pub mod nodegeo;
 pub mod profiles;
-pub mod selftest;
 pub mod settings;
 pub mod speedtest;
 pub mod state;
@@ -35,6 +34,12 @@ pub fn run() {
     let paths = Paths::new();
     let _ = paths.ensure();
     util::init_logger(&paths.logs);
+    // Release builds abort on panic without a console, so record it in the log first.
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        log::error!("panic: {info}");
+        default_hook(info);
+    }));
     log::info!("ClashWin {} starting (elevated: {})", env!("CARGO_PKG_VERSION"), admin::is_elevated());
 
     // A previous instance may be relaunching us (elevation); let it exit first.
@@ -78,7 +83,6 @@ pub fn run() {
             windows::create_tray_panel(&handle)?;
             tray::create(&handle)?;
             tasks::spawn_all(&handle);
-            selftest::start(&handle);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -89,7 +93,6 @@ pub fn run() {
             cmds::restart_as_admin,
             cmds::open_dashboard,
             cmds::open_settings,
-            selftest::selftest_point,
             cmds::hide_tray_panel,
             cmds::set_tray_panel_size,
             cmds::set_tray_panel_region,
