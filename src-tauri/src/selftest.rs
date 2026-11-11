@@ -104,7 +104,7 @@ mod imp {
             let mut h = unsafe { GetTopWindow(std::ptr::null_mut()) };
             let mut i = 0;
             let mut shown = 0;
-            while !h.is_null() && shown < 14 && i < 2000 {
+            while !h.is_null() && shown < 8 && i < 2000 {
                 let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
                 unsafe { GetWindowRect(h, &mut r) };
                 if unsafe { IsWindowVisible(h) } != 0 && r.right > r.left && r.bottom > r.top {
@@ -155,24 +155,35 @@ mod imp {
         log::warn!("SELFTEST no Notepad window found");
     }
 
+    fn icon_rect(app: &AppHandle) -> Option<(i32, i32, i32, i32)> {
+        let r = app.tray_by_id("main").and_then(|t| t.rect().ok().flatten())?;
+        let p = r.position.to_physical::<f64>(1.0);
+        let s = r.size.to_physical::<f64>(1.0);
+        Some((p.x as i32, p.y as i32, s.width as i32, s.height as i32))
+    }
+
+    /// Like a user whose icon sits in the hidden-icons overflow: open the overflow ("^"),
+    /// then right-click the ClashWin icon inside it.
     fn open_popup(app: &AppHandle) {
-        let rect = app.tray_by_id("main").and_then(|t| t.rect().ok().flatten());
-        log::info!("SELFTEST tray icon rect: {rect:?}");
-        if let Some(r) = rect {
-            let p = r.position.to_physical::<f64>(1.0);
-            let s = r.size.to_physical::<f64>(1.0);
-            if s.width > 0.0 && s.height > 0.0 && p.x > 0.0 && p.y > 0.0 {
-                click((p.x + s.width / 2.0) as i32, (p.y + s.height / 2.0) as i32, true);
+        let before = icon_rect(app);
+        log::info!("SELFTEST icon rect (overflow closed): {before:?}");
+        if let Some((x, y, w, h)) = before {
+            click(x + w / 2, y + h / 2, false);
+            sleep_ms(1200);
+            log::info!("SELFTEST after clicking the chevron, foreground: {}", describe(unsafe { GetForegroundWindow() }));
+            let after = icon_rect(app);
+            log::info!("SELFTEST icon rect (overflow open?): {after:?}");
+            if let Some((x, y, w, h)) = after.filter(|a| Some(*a) != before) {
+                click(x + w / 2, y + h / 2, true);
                 sleep_ms(1200);
                 if tray_visible(app) {
-                    log::info!("SELFTEST popup opened by right-clicking the tray icon");
+                    log::info!("SELFTEST popup opened from the overflow icon");
                     return;
                 }
-                log::warn!("SELFTEST right-click on the icon did not open the popup");
+                log::warn!("SELFTEST right-click on the overflow icon did not open the popup");
             }
         }
-        // Fallback: what the right-click handler does.
-        unsafe { SetCursorPos(1800, 1060) };
+        // Fallback: what the right-click handler does (the overflow may still be open).
         let a = app.clone();
         let _ = app.run_on_main_thread(move || {
             let p = a.cursor_position().unwrap_or_default();
@@ -230,7 +241,7 @@ mod imp {
                         w.on_window_event(|e| log::info!("SELFTEST settings event: {e:?}"));
                     }
                 }
-                report(&app, &format!("r{round} +{}ms", t0.elapsed().as_millis()), matches!(i, 1 | 4 | 9 | 19));
+                report(&app, &format!("r{round} +{}ms", t0.elapsed().as_millis()), matches!(i, 0 | 1 | 2 | 4 | 7 | 12 | 19));
             }
             // Close it the way its close button does, for the next round.
             if let Some(w) = app.get_webview_window("settings") {
