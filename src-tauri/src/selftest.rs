@@ -1,0 +1,245 @@
+//! TEMPORARY repro harness, only active with CLASHWIN_SELFTEST set (used by a CI workflow on a
+//! Windows runner): right-click the tray icon, click "Settings" in the popup with real mouse
+//! input, and log what happens to the windows (z-order, visibility, foreground, events).
+
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+use tauri::{AppHandle, Manager};
+
+static POINT: Mutex<Option<(f64, f64)>> = Mutex::new(None);
+
+#[tauri::command]
+pub fn selftest_point(x: f64, y: f64) {
+    *POINT.lock().unwrap() = Some((x, y));
+}
+
+pub fn start(app: &AppHandle) {
+    if std::env::var_os("CLASHWIN_SELFTEST").is_none() {
+        return;
+    }
+    std::panic::set_hook(Box::new(|info| log::error!("SELFTEST PANIC: {info}")));
+    #[cfg(windows)]
+    {
+        let app = app.clone();
+        std::thread::spawn(move || imp::run(app));
+    }
+    #[cfg(not(windows))]
+    let _ = app;
+}
+
+fn sleep_ms(ms: u64) {
+    std::thread::sleep(Duration::from_millis(ms));
+}
+
+#[cfg(windows)]
+mod imp {
+    use super::*;
+    use windows_sys::Win32::Foundation::{HWND, RECT};
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::*;
+    use windows_sys::Win32::UI::WindowsAndMessaging::*;
+
+    fn text(h: HWND, class: bool) -> String {
+        let mut buf = [0u16; 256];
+        let n = unsafe {
+            if class {
+                GetClassNameW(h, buf.as_mut_ptr(), 256)
+            } else {
+                GetWindowTextW(h, buf.as_mut_ptr(), 256)
+            }
+        };
+        String::from_utf16_lossy(&buf[..n.max(0) as usize])
+    }
+
+    fn pid_of(h: HWND) -> u32 {
+        let mut pid = 0u32;
+        unsafe { GetWindowThreadProcessId(h, &mut pid) };
+        pid
+    }
+
+    fn describe(h: HWND) -> String {
+        if h.is_null() {
+            return "null".into();
+        }
+        let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+        unsafe { GetWindowRect(h, &mut r) };
+        let ours = pid_of(h) == std::process::id();
+        unsafe {
+            format!(
+                "{:?} '{}' class={} {} vis={} iconic={} rect=({},{} {}x{}) ex={:#x}",
+                h,
+                text(h, false),
+                text(h, true),
+                if ours { "OURS" } else { "other" },
+                IsWindowVisible(h),
+                IsIconic(h),
+                r.left,
+                r.top,
+                r.right - r.left,
+                r.bottom - r.top,
+                GetWindowLongPtrW(h, GWL_EXSTYLE)
+            )
+        }
+    }
+
+    fn webview_hwnd(app: &AppHandle, label: &str) -> Option<HWND> {
+        app.get_webview_window(label).and_then(|w| w.hwnd().ok()).map(|h| h.0 as HWND)
+    }
+
+    /// Foreground window, our windows, and (optionally) the top of the z-order.
+    fn report(app: &AppHandle, tag: &str, zorder: bool) {
+        let fg = unsafe { GetForegroundWindow() };
+        log::info!("SELFTEST [{tag}] foreground: {}", describe(fg));
+        let settings = webview_hwnd(app, "settings");
+        log::info!(
+            "SELFTEST [{tag}] tauri settings window: {}",
+            match settings {
+                Some(h) => format!("{} iswindow={}", describe(h), unsafe { IsWindow(h) }),
+                None => "none".into(),
+            }
+        );
+        if let Some(h) = webview_hwnd(app, "tray") {
+            log::info!("SELFTEST [{tag}] tray: vis={}", unsafe { IsWindowVisible(h) });
+        }
+        if zorder {
+            let mut h = unsafe { GetTopWindow(std::ptr::null_mut()) };
+            let mut i = 0;
+            let mut shown = 0;
+            while !h.is_null() && shown < 14 && i < 2000 {
+                let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+                unsafe { GetWindowRect(h, &mut r) };
+                if unsafe { IsWindowVisible(h) } != 0 && r.right > r.left && r.bottom > r.top {
+                    log::info!("SELFTEST [{tag}] z{i}: {}", describe(h));
+                    shown += 1;
+                }
+                h = unsafe { GetWindow(h, GW_HWNDNEXT) };
+                i += 1;
+            }
+        }
+    }
+
+    fn click(x: i32, y: i32, right: bool) {
+        let (down, up) = if right { (MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP) } else { (MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP) };
+        unsafe { SetCursorPos(x, y) };
+        sleep_ms(150);
+        for flags in [down, up] {
+            let input = INPUT {
+                r#type: INPUT_MOUSE,
+                Anonymous: INPUT_0 { mi: MOUSEINPUT { dx: 0, dy: 0, mouseData: 0, dwFlags: flags, time: 0, dwExtraInfo: 0 } },
+            };
+            let n = unsafe { SendInput(1, &input, std::mem::size_of::<INPUT>() as i32) };
+            log::info!("SELFTEST SendInput {} {} at ({x},{y}) -> {n}", if right { "right" } else { "left" }, if flags == down { "down" } else { "up" });
+            sleep_ms(80);
+        }
+    }
+
+    fn tray_visible(app: &AppHandle) -> bool {
+        webview_hwnd(app, "tray").is_some_and(|h| unsafe { IsWindowVisible(h) } != 0)
+    }
+
+    /// Click the middle of another app's window (Notepad, started by the workflow) so it is
+    /// the foreground app, like a user working in another program.
+    fn focus_other_app() {
+        let mut h = unsafe { GetTopWindow(std::ptr::null_mut()) };
+        while !h.is_null() {
+            let title = text(h, false);
+            if unsafe { IsWindowVisible(h) } != 0 && (title.contains("Notepad") || title.contains("记事本")) {
+                let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+                unsafe { GetWindowRect(h, &mut r) };
+                log::info!("SELFTEST clicking other app: {}", describe(h));
+                click((r.left + r.right) / 2, (r.top + r.bottom) / 2, false);
+                sleep_ms(500);
+                return;
+            }
+            h = unsafe { GetWindow(h, GW_HWNDNEXT) };
+        }
+        log::warn!("SELFTEST no Notepad window found");
+    }
+
+    fn open_popup(app: &AppHandle) {
+        let rect = app.tray_by_id("main").and_then(|t| t.rect().ok().flatten());
+        log::info!("SELFTEST tray icon rect: {rect:?}");
+        if let Some(r) = rect {
+            let p = r.position.to_physical::<f64>(1.0);
+            let s = r.size.to_physical::<f64>(1.0);
+            if s.width > 0.0 && s.height > 0.0 && p.x > 0.0 && p.y > 0.0 {
+                click((p.x + s.width / 2.0) as i32, (p.y + s.height / 2.0) as i32, true);
+                sleep_ms(1200);
+                if tray_visible(app) {
+                    log::info!("SELFTEST popup opened by right-clicking the tray icon");
+                    return;
+                }
+                log::warn!("SELFTEST right-click on the icon did not open the popup");
+            }
+        }
+        // Fallback: what the right-click handler does.
+        unsafe { SetCursorPos(1800, 1060) };
+        let a = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            let p = a.cursor_position().unwrap_or_default();
+            crate::windows::toggle_tray_panel(&a, p);
+        });
+        sleep_ms(1200);
+        log::info!("SELFTEST popup opened directly, visible={}", tray_visible(app));
+    }
+
+    fn settings_row_point(app: &AppHandle) -> Option<(i32, i32)> {
+        let w = app.get_webview_window("tray")?;
+        *POINT.lock().unwrap() = None;
+        let _ = w.eval(
+            r#"(() => {
+                const r = [...document.querySelectorAll('.tr-row')].find((e) => e.textContent.includes('Ctrl+,'));
+                if (!r) return;
+                const b = r.getBoundingClientRect();
+                window.__TAURI_INTERNALS__.invoke('selftest_point', { x: b.left + b.width / 2, y: b.top + b.height / 2 });
+            })()"#,
+        );
+        let t = Instant::now();
+        while t.elapsed() < Duration::from_secs(3) {
+            if let Some((x, y)) = *POINT.lock().unwrap() {
+                let pos = w.inner_position().ok()?;
+                let scale = w.scale_factor().unwrap_or(1.0);
+                log::info!("SELFTEST settings row css ({x},{y}), window inner {pos:?}, scale {scale}");
+                return Some(((pos.x as f64 + x * scale) as i32, (pos.y as f64 + y * scale) as i32));
+            }
+            sleep_ms(50);
+        }
+        None
+    }
+
+    pub fn run(app: AppHandle) {
+        sleep_ms(12000);
+        report(&app, "start", true);
+        let mut hooked = false;
+        for round in 1..=3 {
+            log::info!("SELFTEST ===== round {round} =====");
+            focus_other_app();
+            report(&app, &format!("r{round} before"), false);
+            open_popup(&app);
+            report(&app, &format!("r{round} popup"), true);
+            let Some((x, y)) = settings_row_point(&app) else {
+                log::error!("SELFTEST settings row not found");
+                continue;
+            };
+            click(x, y, false);
+            let t0 = Instant::now();
+            for i in 0..20 {
+                sleep_ms(200);
+                if !hooked {
+                    if let Some(w) = app.get_webview_window("settings") {
+                        hooked = true;
+                        w.on_window_event(|e| log::info!("SELFTEST settings event: {e:?}"));
+                    }
+                }
+                report(&app, &format!("r{round} +{}ms", t0.elapsed().as_millis()), matches!(i, 1 | 4 | 9 | 19));
+            }
+            // Close it the way its close button does, for the next round.
+            if let Some(w) = app.get_webview_window("settings") {
+                let _ = w.hide();
+            }
+            sleep_ms(800);
+        }
+        log::info!("SELFTEST DONE");
+        sleep_ms(500);
+        app.exit(0);
+    }
+}
