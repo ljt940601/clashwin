@@ -30,7 +30,7 @@ import { formatBytes, formatSpeed, daysLeft } from "@/lib/format";
 import { useProviderSubs } from "@/lib/providerSubs";
 import { detectCountry, flagEmoji, hasFlag } from "@/lib/countries";
 import { TrafficChart } from "@/components/charts/TrafficChart";
-import { LatencyBadge, Progress, Spinner, Tag, Toggle, cx, toast, usageColor } from "@/components/ui";
+import { LatencyBadge, Progress, Spinner, Tag, Toggle, cancelDialogs, cx, toast, usageColor, useDialogOpen } from "@/components/ui";
 import type { AppUpdateInfo, OutboundMode, ProxyItem } from "@/lib/types";
 import { copyText, lanAddress, shellExport } from "./shell";
 import { QuickRuleDialog } from "./QuickRuleDialog";
@@ -184,6 +184,7 @@ export default function TrayPanel() {
   const connCount = useLive((s) => s.connections.length);
 
   const running = core.state === "running";
+  const coreBusy = !!busy.core || core.state === "starting";
   const cards = settings.menuCards;
 
   const [appMem, setAppMem] = React.useState(0);
@@ -192,6 +193,7 @@ export default function TrayPanel() {
   const [ssid, setSsid] = React.useState<string | null>(null);
   const [lanIp, setLanIp] = React.useState<string | null>(null);
   const [ruleOpen, setRuleOpen] = React.useState(false);
+  const dialogOpen = useDialogOpen();
   const [fly, setFly] = React.useState<{ id: FlyId; top: number } | null>(null);
   const [panelH, setPanelH] = React.useState(600);
   const [zoom, setZoom] = React.useState(1);
@@ -279,6 +281,7 @@ export default function TrayPanel() {
       listen("tray://hidden", () => {
         setFly(null);
         setRuleOpen(false);
+        cancelDialogs();
       }),
     ];
     return () => offs.forEach((p) => p.then((off) => off()));
@@ -297,7 +300,7 @@ export default function TrayPanel() {
     const root = rootRef.current;
     const panel = panelRef.current;
     if (!root || !panel) return;
-    if (ruleOpen) {
+    if (ruleOpen || dialogOpen) {
       backend.setTrayPanelRegion([]).catch(() => {}); // dialog overlays the whole window
       return;
     }
@@ -310,7 +313,7 @@ export default function TrayPanel() {
     const f = root.querySelector<HTMLElement>(".tr-flyout");
     if (f) rects.push(shape(f));
     backend.setTrayPanelRegion(rects).catch(() => {});
-  }, [ruleOpen]);
+  }, [ruleOpen, dialogOpen]);
 
   React.useLayoutEffect(() => {
     reportRegion();
@@ -321,10 +324,10 @@ export default function TrayPanel() {
     return () => ro.disconnect();
   }, [fly, ruleOpen, reportRegion]);
 
-  // Typing in the quick-rule dialog needs keyboard focus.
+  // The popup normally does not take focus; every dialog needs its keyboard events.
   React.useEffect(() => {
-    if (ruleOpen) backend.focusTrayPanel().catch(() => {});
-  }, [ruleOpen]);
+    if (ruleOpen || dialogOpen) backend.focusTrayPanel().catch(() => {});
+  }, [ruleOpen, dialogOpen]);
   React.useLayoutEffect(() => {
     const root = rootRef.current;
     const panel = panelRef.current;
@@ -430,19 +433,19 @@ export default function TrayPanel() {
   };
 
   /* ----- keyboard shortcuts ----- */
-  const stateRef = React.useRef({ fly, ruleOpen, settings, lanIp });
-  stateRef.current = { fly, ruleOpen, settings, lanIp };
+  const stateRef = React.useRef({ fly, ruleOpen, dialogOpen, settings, lanIp });
+  stateRef.current = { fly, ruleOpen, dialogOpen, settings, lanIp };
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const st = stateRef.current;
       const inField = (e.target as HTMLElement)?.closest?.("input, textarea");
       if (e.key === "Escape") {
-        if (st.ruleOpen) return; // modal handles its own Esc
+        if (st.ruleOpen || st.dialogOpen) return; // modal handles its own Esc
         if (st.fly) setFly(null);
         else backend.hideTrayPanel().catch(() => {});
         return;
       }
-      if (!e.ctrlKey || inField || st.ruleOpen) return;
+      if (!e.ctrlKey || inField || st.ruleOpen || st.dialogOpen) return;
       const k = e.key.toLowerCase();
       const app = useApp.getState();
       const handled = () => e.preventDefault();
@@ -535,9 +538,9 @@ export default function TrayPanel() {
     if (fly.id === "kernel") {
       flyContent = (
         <>
-          <FlyRow showCheck={false} label={t("tray.startKernel")} disabled={running || !!busy.core} onClick={() => (setFly(null), startCore())} />
-          <FlyRow showCheck={false} label={t("tray.stopKernel")} disabled={!running || !!busy.core} onClick={() => (setFly(null), stopCore())} />
-          <FlyRow showCheck={false} label={t("tray.restartKernel")} disabled={!!busy.core || core.state === "not_installed"} onClick={() => (setFly(null), restartCore())} />
+          <FlyRow showCheck={false} label={t("tray.startKernel")} disabled={running || coreBusy} onClick={() => (setFly(null), startCore())} />
+          <FlyRow showCheck={false} label={t("tray.stopKernel")} disabled={!running || coreBusy} onClick={() => (setFly(null), stopCore())} />
+          <FlyRow showCheck={false} label={t("tray.restartKernel")} disabled={coreBusy || core.state === "not_installed"} onClick={() => (setFly(null), restartCore())} />
           <div className="tr-sep" />
           <FlyRow showCheck={false} label={t("tray.openLogs")} onClick={() => openDashboard("/logs")} />
         </>
@@ -711,18 +714,18 @@ export default function TrayPanel() {
         {(cards.trafficWave || cards.perfGrid || showSub) && <div className="tr-sep" />}
 
         {/* 5. switches */}
-        <div className="tr-row tall" onClick={() => toggleSystemProxy(!settings.systemProxy)} {...plainRowProps}>
+        <div className="tr-row tall" onClick={() => !busy.sysproxy && toggleSystemProxy(!settings.systemProxy)} {...plainRowProps}>
           <span className="tr-row-label">{t("tray.systemProxy")}</span>
           <span className="tr-row-right">
             {busy.sysproxy && <Spinner size={12} />}
-            <Toggle checked={settings.systemProxy} onChange={(v) => toggleSystemProxy(v)} />
+            <Toggle checked={settings.systemProxy} disabled={!!busy.sysproxy} onChange={(v) => toggleSystemProxy(v)} />
           </span>
         </div>
-        <div className="tr-row tall" onClick={() => toggleTun(!settings.tunMode)} {...plainRowProps}>
+        <div className="tr-row tall" onClick={() => !busy.tun && toggleTun(!settings.tunMode)} {...plainRowProps}>
           <span className="tr-row-label">{t("tray.enhancedMode")}</span>
           <span className="tr-row-right">
             {busy.tun && <Spinner size={12} />}
-            <Toggle checked={settings.tunMode} onChange={(v) => toggleTun(v)} />
+            <Toggle checked={settings.tunMode} disabled={!!busy.tun} onChange={(v) => toggleTun(v)} />
           </span>
         </div>
 

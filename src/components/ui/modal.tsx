@@ -84,6 +84,15 @@ const useDialogStore = create<{ queue: DialogReq[]; push: (d: DialogReq) => void
 }));
 let dialogSeq = 0;
 
+export const useDialogOpen = () => useDialogStore((s) => s.queue.length > 0);
+
+/** Cancel pending answers when a popup window is hidden. */
+export function cancelDialogs() {
+  const { queue } = useDialogStore.getState();
+  useDialogStore.setState({ queue: [] });
+  for (const d of queue) d.resolve(d.kind === "confirm" ? false : null);
+}
+
 export function confirm(opts: { title: string; message?: string; confirmText?: string; cancelText?: string; danger?: boolean }): Promise<boolean> {
   return new Promise((resolve) => useDialogStore.getState().push({ id: ++dialogSeq, kind: "confirm", ...opts, resolve }));
 }

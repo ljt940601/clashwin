@@ -401,22 +401,24 @@ pub async fn reset_engine(app: AppHandle, section: String) -> Res<AppSettings> {
 #[tauri::command]
 pub async fn set_system_proxy(app: AppHandle, enable: bool) -> Res<()> {
     let st = state(&app);
-    if enable {
-        if !st.core.is_running() {
-            if !st.paths.core_exe().exists() {
-                return Err(AppError::new("CORE_NOT_INSTALLED", "The mihomo core is not installed"));
-            }
-            st.start_core(&app).await?;
+    let _g = st.op.lock().await;
+    if enable && !st.core.is_running() {
+        if !st.paths.core_exe().exists() {
+            return Err(AppError::new("CORE_NOT_INSTALLED", "The mihomo core is not installed"));
         }
-        // Apply first: if the port belongs to another program this fails and the
-        // setting stays off instead of claiming a proxy that isn't ours.
-        st.apply_sysproxy_registry(true)?;
-        st.update_settings(&app, |s| s.system_proxy = true)?;
-    } else {
-        st.update_settings(&app, |s| s.system_proxy = false)?;
-        st.apply_sysproxy_registry(false)?;
+        st.start_core_locked(&app).await?;
     }
-    Ok(())
+    let st2 = st.clone();
+    // WinINet notifications and probing the previous proxy can block. Keep them
+    // off the async runtime so other commands/events continue to be processed.
+    tokio::task::spawn_blocking(move || {
+        // Publish the setting only after the registry operation succeeds.
+        st2.apply_sysproxy_registry(enable)?;
+        st2.update_settings(&app, |s| s.system_proxy = enable)?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::io(e.to_string()))?
 }
 
 #[tauri::command]
@@ -430,9 +432,20 @@ pub async fn set_tun_mode(app: AppHandle, enable: bool) -> Res<()> {
         }
         return Err(AppError::new("NEED_ADMIN", "Enhanced Mode requires administrator rights"));
     }
+    let _g = st.op.lock().await;
     let prev = st.settings().tun_mode;
     st.update_settings(&app, |s| s.tun_mode = enable)?;
-    if let Err(e) = st.reload(&app).await {
+    let result = async {
+        st.write_runtime()?;
+        if st.core.is_running() {
+            // Toggle the listener directly. A full PUT /configs also reloads all
+            // providers/rules and can wait on downloads even when just turning TUN off.
+            core::set_tun_enabled(&st.core.controller(), enable).await?;
+        }
+        Ok::<_, AppError>(())
+    }
+    .await;
+    if let Err(e) = result {
         st.update_settings(&app, |s| s.tun_mode = prev)?;
         let _ = st.write_runtime();
         return Err(e);
