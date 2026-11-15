@@ -1,0 +1,77 @@
+name: PR installer
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [fix/proxy-toggle-hang]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-installer-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    env:
+      CLASHWIN_BUILD: pr${{ github.event.pull_request.number || 10 }}-${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Rust toolchain
+        run: rustup default stable
+
+      - name: Cache Rust build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - run: npm ci
+
+      - name: Build Windows installer
+        run: npx tauri build --bundles nsis
+
+      - name: Prepare test download
+        id: package
+        shell: pwsh
+        run: |
+          $pr = '${{ github.event.pull_request.number || 10 }}'
+          $sha = (git rev-parse --short=7 HEAD).Trim()
+          $fullSha = (git rev-parse HEAD).Trim()
+          $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $source = "src-tauri/target/release/bundle/nsis/ClashWin_${version}_x64-setup.exe"
+          if (-not (Test-Path $source)) { throw "Installer was not produced: $source" }
+          New-Item -ItemType Directory -Path test-installer -Force | Out-Null
+          $name = "ClashWin_PR${pr}_${sha}_x64-setup.exe"
+          Copy-Item $source "test-installer/$name"
+          $hash = (Get-FileHash "test-installer/$name" -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $name" | Set-Content test-installer/SHA256SUMS.txt -Encoding utf8
+          @{ pullRequest = [int]$pr; commit = $fullSha; version = $version; installer = $name; sha256 = $hash } |
+            ConvertTo-Json | Set-Content test-installer/build-info.json -Encoding utf8
+          "artifact=ClashWin-PR${pr}-Windows-x64-${sha}" >> $env:GITHUB_OUTPUT
+          "Test installer: $name`n`nCommit: $fullSha`n`nSHA-256: $hash" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload test installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.artifact }}
+          path: test-installer/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
