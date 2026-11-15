@@ -68,6 +68,7 @@ function applySettings(s: AppSettings) {
 }
 
 async function withBusy(key: string, fn: () => Promise<void>) {
+  if (useApp.getState().busy[key]) return;
   const set = useApp.setState;
   set((s) => ({ busy: { ...s.busy, [key]: true } }));
   try {
@@ -175,8 +176,8 @@ export const useApp = create<AppState>((set, get) => ({
   refreshProfiles: async () => set({ profiles: await backend.listProfiles() }),
 
   toggleSystemProxy: async (enable, opts) => {
-    if (opts?.confirm && !(await confirm({ title: t(enable ? "common.sysProxyOnConfirm" : "common.sysProxyOffConfirm") }))) return;
     await withBusy("sysproxy", async () => {
+      if (opts?.confirm && !(await confirm({ title: t(enable ? "common.sysProxyOnConfirm" : "common.sysProxyOffConfirm") }))) return;
       try {
         await backend.setSystemProxy(enable);
         const s = get().settings;
@@ -188,8 +189,8 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   toggleTun: async (enable, opts) => {
-    if (opts?.confirm && !(await confirm({ title: t(enable ? "common.tunOnConfirm" : "common.tunOffConfirm") }))) return;
     await withBusy("tun", async () => {
+      if (opts?.confirm && !(await confirm({ title: t(enable ? "common.tunOnConfirm" : "common.tunOffConfirm") }))) return;
       try {
         await backend.setTunMode(enable);
         const s = get().settings;
@@ -246,8 +247,8 @@ export const useApp = create<AppState>((set, get) => ({
     }),
 
   stopCore: async (opts) => {
-    if (opts?.confirm && !(await confirm({ title: t("common.stopCore"), message: t("common.stopCoreConfirm"), danger: true }))) return;
     await withBusy("core", async () => {
+      if (opts?.confirm && !(await confirm({ title: t("common.stopCore"), message: t("common.stopCoreConfirm"), danger: true }))) return;
       try {
         set({ core: await backend.coreStop() });
       } catch (e) {

@@ -50,7 +50,8 @@ pub fn create_main_restored(app: &AppHandle, visible: bool, restore: Option<&adm
     let bounds = restore.and_then(|r| r.bounds);
     let maximized = restore.is_some_and(|r| r.maximized);
     let w = WebviewWindowBuilder::new(app, "main", WebviewUrl::App(format!("index.html#{page}").into()))
-        .title("ClashWin")
+        .title(if cfg!(feature = "diagnostics") { "ClashWin Diagnostics" } else { "ClashWin" })
+        .devtools(cfg!(debug_assertions) || cfg!(feature = "diagnostics"))
         .inner_size(1240.0, 800.0)
         .min_inner_size(960.0, 620.0)
         .background_color(window_bg(app))
@@ -192,7 +193,8 @@ pub fn create_tray_panel(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     }
     let (lw, lh) = state(app).tray_ui.lock().size;
     let w = WebviewWindowBuilder::new(app, "tray", WebviewUrl::App("index.html#/tray".into()))
-        .title("ClashWin")
+        .title(if cfg!(feature = "diagnostics") { "ClashWin Diagnostics" } else { "ClashWin" })
+        .devtools(cfg!(debug_assertions) || cfg!(feature = "diagnostics"))
         .inner_size(lw, lh)
         .decorations(false)
         .transparent(true)
@@ -303,8 +305,12 @@ enum Edge {
 /// rect: x, y, w, h) the corner nearest the cursor stays fixed while the size changes.
 fn place_tray_panel(app: &AppHandle, w: &WebviewWindow, keep: Option<(i32, i32, i32, i32)>) {
     let st = state(app);
-    let (lw, lh) = st.tray_ui.lock().size;
-    let anchor = st.tray_ui.lock().anchor.or_else(|| app.cursor_position().ok().map(|p| (p.x, p.y)));
+    let (lw, lh, anchor) = {
+        let tray = st.tray_ui.lock();
+        (tray.size.0, tray.size.1, tray.anchor)
+    };
+    // Window getters can wait for the UI thread, whose tray events also need tray_ui.
+    let anchor = anchor.or_else(|| app.cursor_position().ok().map(|p| (p.x, p.y)));
     let (ax, ay) = anchor.unwrap_or((0.0, 0.0));
     let monitor = app.monitor_from_point(ax, ay).ok().flatten().or_else(|| w.primary_monitor().ok().flatten());
     let Some(m) = monitor else {

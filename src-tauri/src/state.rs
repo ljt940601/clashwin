@@ -204,6 +204,8 @@ impl AppState {
 
     /// Regenerate runtime config and hot-reload the running core.
     pub async fn reload(&self, _app: &AppHandle) -> Res<()> {
+        // A full reload must not overtake a TUN switch or a core start/stop.
+        let _g = self.op.lock().await;
         let path = self.write_runtime()?;
         if !self.core.is_running() {
             return Ok(());
@@ -242,7 +244,7 @@ impl AppState {
         self.start_core_locked(app).await
     }
 
-    async fn start_core_locked(self: &Arc<Self>, app: &AppHandle) -> Res<CoreStatus> {
+    pub(crate) async fn start_core_locked(self: &Arc<Self>, app: &AppHandle) -> Res<CoreStatus> {
         let exe = self.paths.core_exe();
         if !exe.exists() {
             self.core.update(|s| {
@@ -490,8 +492,11 @@ impl AppState {
             *owned = Some((written, previous));
             self.sysproxy_by_us.store(true, Ordering::SeqCst);
         } else {
-            if let Some((written, previous)) = self.sysproxy_owned.lock().take() {
-                sysproxy::release(&written, previous.as_ref())?;
+            let mut owned = self.sysproxy_owned.lock();
+            if let Some((written, previous)) = owned.as_ref() {
+                // Keep ownership on failure so a retry can still release the proxy.
+                sysproxy::release(written, previous.as_ref())?;
+                *owned = None;
                 let _ = std::fs::remove_file(self.paths.data.join("sysproxy_prev.json"));
             }
             self.sysproxy_by_us.store(false, Ordering::SeqCst);

@@ -1,0 +1,53 @@
+name: Checks
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [fix/proxy-toggle-hang]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Rust toolchain
+        run: rustup default stable
+
+      - name: Cache Rust build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: checks-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: checks-${{ runner.os }}-
+
+      - run: npm ci
+
+      - name: Frontend switch regression tests
+        run: node --test tests/frontend-switches.test.cjs
+
+      - name: Frontend production build
+        run: npm run build
+
+      - name: Rust unit and controller regression tests
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib

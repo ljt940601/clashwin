@@ -195,6 +195,12 @@ pub async fn api(ctl: &ControllerInfo, method: reqwest::Method, path: &str, body
     Ok(serde_json::from_str(&text).unwrap_or(serde_json::Value::String(text)))
 }
 
+/// Change only TUN's enabled state; preserve its other options and loaded providers.
+pub async fn set_tun_enabled(ctl: &ControllerInfo, enable: bool) -> Res<()> {
+    api(ctl, reqwest::Method::PATCH, "/configs", Some(serde_json::json!({ "tun": { "enable": enable } }))).await?;
+    Ok(())
+}
+
 /* ---------------- Version detection ---------------- */
 
 pub fn read_installed_version(version_file: &Path, exe: &Path) -> Option<String> {
@@ -480,6 +486,61 @@ mod tests {
 
     fn names(v: &[&str]) -> Vec<String> {
         v.iter().map(|s| s.to_string()).collect()
+    }
+
+    /// A controller that accepts one request, with a deadline so regressions don't hang tests.
+    async fn mock_controller(status: &str, body: &str) -> (ControllerInfo, tokio::task::JoinHandle<String>) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let ctl = ControllerInfo { url: format!("http://{}", listener.local_addr().unwrap()), secret: "test-secret".into() };
+        let response = format!("HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+        let server = tokio::spawn(async move {
+            tokio::time::timeout(std::time::Duration::from_secs(5), async move {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = Vec::new();
+                loop {
+                    let mut buf = [0u8; 1024];
+                    let n = socket.read(&mut buf).await.unwrap();
+                    assert_ne!(n, 0, "controller request ended early");
+                    request.extend_from_slice(&buf[..n]);
+                    if let Some(end) = request.windows(4).position(|w| w == b"\r\n\r\n") {
+                        let headers = String::from_utf8_lossy(&request[..end]);
+                        let size = headers.lines().find_map(|line| {
+                            let (key, value) = line.split_once(':')?;
+                            key.eq_ignore_ascii_case("content-length").then(|| value.trim().parse::<usize>().unwrap())
+                        }).unwrap_or(0);
+                        if request.len() >= end + 4 + size {
+                            break;
+                        }
+                    }
+                }
+                socket.write_all(response.as_bytes()).await.unwrap();
+                String::from_utf8(request).unwrap()
+            }).await.expect("controller request timed out")
+        });
+        (ctl, server)
+    }
+
+    #[tokio::test]
+    async fn tun_switch_does_not_reload_providers() {
+        for enable in [false, true] {
+            let (ctl, server) = mock_controller("204 No Content", "").await;
+            set_tun_enabled(&ctl, enable).await.unwrap();
+            let request = server.await.unwrap();
+            let (headers, body) = request.split_once("\r\n\r\n").unwrap();
+            assert!(headers.starts_with("PATCH /configs HTTP/1.1\r\n"), "must not perform a full config reload: {headers}");
+            assert!(headers.to_ascii_lowercase().contains("authorization: bearer test-secret"));
+            assert_eq!(serde_json::from_str::<serde_json::Value>(body).unwrap(), serde_json::json!({ "tun": { "enable": enable } }));
+        }
+    }
+
+    #[tokio::test]
+    async fn tun_switch_reports_controller_failure() {
+        let (ctl, server) = mock_controller("400 Bad Request", r#"{"message":"TUN unavailable"}"#).await;
+        let err = set_tun_enabled(&ctl, false).await.unwrap_err();
+        assert_eq!(err.code, "INVALID_CONFIG");
+        assert_eq!(err.message, "TUN unavailable");
+        server.await.unwrap();
     }
 
     #[test]
