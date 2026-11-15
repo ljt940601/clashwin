@@ -68,35 +68,12 @@ function applySettings(s: AppSettings) {
 }
 
 async function withBusy(key: string, fn: () => Promise<void>) {
-  // Check the store synchronously: rendered event handlers can still hold the
-  // previous busy value, and tray/keyboard callers bypass the toolbar entirely.
-  if (useApp.getState().busy[key]) return;
   const set = useApp.setState;
   set((s) => ({ busy: { ...s.busy, [key]: true } }));
   try {
     await fn();
   } finally {
     set((s) => ({ busy: { ...s.busy, [key]: false } }));
-  }
-}
-
-async function refreshSwitchState(key: "systemProxy" | "tunMode") {
-  const before = useApp.getState().settings;
-  const actual = await backend.getSettings();
-  // A newer event/save received during the read wins. Never write the target
-  // captured by an old click over the backend's current state.
-  useApp.setState((s) =>
-    s.settings && s.settings === before ? { settings: { ...s.settings, [key]: actual[key] } } : {},
-  );
-}
-
-async function receiveCore(command: () => Promise<CoreStatus>) {
-  const before = useApp.getState().core;
-  const core = await command();
-  // Status events from another operation may arrive before this older reply.
-  if (useApp.getState().core === before) {
-    setController(core.controller.url, core.controller.secret);
-    useApp.setState({ core });
   }
 }
 
@@ -190,17 +167,20 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   refreshCore: async () => {
-    await receiveCore(backend.coreStatus);
+    const c = await backend.coreStatus();
+    setController(c.controller.url, c.controller.secret);
+    set({ core: c });
   },
 
   refreshProfiles: async () => set({ profiles: await backend.listProfiles() }),
 
   toggleSystemProxy: async (enable, opts) => {
+    if (opts?.confirm && !(await confirm({ title: t(enable ? "common.sysProxyOnConfirm" : "common.sysProxyOffConfirm") }))) return;
     await withBusy("sysproxy", async () => {
-      if (opts?.confirm && !(await confirm({ title: t(enable ? "common.sysProxyOnConfirm" : "common.sysProxyOffConfirm") }))) return;
       try {
         await backend.setSystemProxy(enable);
-        await refreshSwitchState("systemProxy");
+        const s = get().settings;
+        if (s) set({ settings: { ...s, systemProxy: enable } });
       } catch (e) {
         toast.error(errorMessage(e));
       }
@@ -208,11 +188,12 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   toggleTun: async (enable, opts) => {
+    if (opts?.confirm && !(await confirm({ title: t(enable ? "common.tunOnConfirm" : "common.tunOffConfirm") }))) return;
     await withBusy("tun", async () => {
-      if (opts?.confirm && !(await confirm({ title: t(enable ? "common.tunOnConfirm" : "common.tunOffConfirm") }))) return;
       try {
         await backend.setTunMode(enable);
-        await refreshSwitchState("tunMode");
+        const s = get().settings;
+        if (s) set({ settings: { ...s, tunMode: enable } });
       } catch (e) {
         if (!(await handleNeedAdmin(e))) toast.error(errorMessage(e));
       }
@@ -258,17 +239,17 @@ export const useApp = create<AppState>((set, get) => ({
   startCore: async () =>
     withBusy("core", async () => {
       try {
-        await receiveCore(backend.coreStart);
+        set({ core: await backend.coreStart() });
       } catch (e) {
         if (!(await handleNeedAdmin(e))) toast.error(errorMessage(e));
       }
     }),
 
   stopCore: async (opts) => {
+    if (opts?.confirm && !(await confirm({ title: t("common.stopCore"), message: t("common.stopCoreConfirm"), danger: true }))) return;
     await withBusy("core", async () => {
-      if (opts?.confirm && !(await confirm({ title: t("common.stopCore"), message: t("common.stopCoreConfirm"), danger: true }))) return;
       try {
-        await receiveCore(backend.coreStop);
+        set({ core: await backend.coreStop() });
       } catch (e) {
         toast.error(errorMessage(e));
       }
@@ -278,7 +259,7 @@ export const useApp = create<AppState>((set, get) => ({
   restartCore: async () =>
     withBusy("core", async () => {
       try {
-        await receiveCore(backend.coreRestart);
+        set({ core: await backend.coreRestart() });
       } catch (e) {
         toast.error(errorMessage(e));
       }
