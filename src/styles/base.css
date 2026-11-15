@@ -100,10 +100,8 @@ textarea {
   background: transparent;
 }
 
-/* Drag region for frameless windows */
-[data-tauri-drag-region] {
-  -webkit-app-region: drag;
-}
+/* Tauri handles data-tauri-drag-region itself. Do not also enable WebView2's
+   CSS non-client regions here: modal/focus updates can stall the native window. */
 
 @keyframes spin {
   to {

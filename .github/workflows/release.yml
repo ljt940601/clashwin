@@ -1,80 +1,49 @@
-# Builds the Windows installer and publishes it to GitHub Releases.
-# Run it from the Actions tab ("Run workflow"), or push a tag like v0.1.1.
-# The release is tagged v<version> from src-tauri/tauri.conf.json; running it again for the
-# same version replaces that release's installer. Notes come from .github/release-notes/v<version>.md.
-# Uses only GitHub's own actions and the tools preinstalled on windows-latest (Rust, gh).
+# Tag only after the matching candidate has passed real Windows desktop QA.
+# Promote the exact candidate installer; do not rebuild after desktop validation.
 name: Release
 
 on:
-  workflow_dispatch:
   push:
-    tags: ["v*"]
+    tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: release
   cancel-in-progress: false
 
 jobs:
-  windows:
+  publish:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Cache Rust build
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            src-tauri/target
-          key: cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
-          restore-keys: cargo-${{ runner.os }}-
-
-      - name: Rust toolchain
-        run: rustup update stable --no-self-update && rustup default stable
-
-      - run: npm ci
-
-      # The Rust cache restores src-tauri/target, including installers from earlier versions.
-      - name: Remove old installers
-        shell: bash
-        run: rm -rf src-tauri/target/release/bundle
-
-      - name: Build installer
-        run: npx tauri build --bundles nsis
-
-      - name: Publish release
-        shell: bash
+      - name: Download and verify tested candidate
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
-          tag="v$version"
-          file="src-tauri/target/release/bundle/nsis/ClashWin_${version}_x64-setup.exe"
-          if [ ! -f "$file" ]; then
-            echo "Installer not found: $file"
-            ls src-tauri/target/release/bundle/nsis/ || true
-            exit 1
-          fi
-          echo "Publishing $file as $tag"
-          # Release notes (shown in the app's update center) come from .github/release-notes/<tag>.md
-          notes_file=".github/release-notes/$tag.md"
-          if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" "$file" --clobber
-            # keep notes edited on GitHub unless the repo has a notes file for this version
-            if [ -f "$notes_file" ]; then gh release edit "$tag" --notes-file "$notes_file"; fi
-          else
-            if [ ! -f "$notes_file" ]; then
-              notes_file="release-notes.tmp.md"
-              echo "下载下面的 ClashWin_${version}_x64-setup.exe 安装即可（Windows 10/11 x64）。" > "$notes_file"
-            fi
-            gh release create "$tag" "$file" --target "$GITHUB_SHA" --title "ClashWin $tag" --notes-file "$notes_file"
-          fi
+          $ErrorActionPreference = 'Stop'
+          $sha = '${{ github.sha }}'
+          $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          if ('${{ github.ref }}' -ne "refs/tags/v$version") { throw 'Release requires the matching version tag.' }
+          $runs = gh api "repos/${{ github.repository }}/actions/workflows/release-candidate.yml/runs?head_sha=$sha&status=success&per_page=20" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot read candidate runs.' }
+          $run = $runs.workflow_runs | Where-Object { $_.head_sha -eq $sha -and $_.conclusion -eq 'success' } | Select-Object -First 1
+          if (-not $run) { throw 'No successful candidate for the tagged commit.' }
+          gh run download $run.id --repo '${{ github.repository }}' --name "ClashWin-candidate-$sha" --dir candidate
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot download candidate.' }
+          $info = Get-Content candidate/build-info.json -Raw | ConvertFrom-Json
+          $name = "ClashWin_${version}_x64-setup.exe"
+          if ($info.commit -ne $sha -or $info.version -ne $version -or $info.installer -ne $name) { throw 'Candidate metadata mismatch.' }
+          if ((Get-FileHash "candidate/$name" -Algorithm SHA256).Hash.ToLowerInvariant() -ne $info.sha256) { throw 'Installer hash mismatch.' }
+      - name: Publish verified installer
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          gh release create "v$version" "candidate/ClashWin_${version}_x64-setup.exe" candidate/SHA256SUMS.txt --verify-tag --title "ClashWin v$version" --notes-file ".github/release-notes/v$version.md"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
