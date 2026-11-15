@@ -49,7 +49,10 @@ function NavigateListener() {
   const navigate = useNavigate();
   React.useEffect(() => {
     let un: (() => void) | undefined;
-    listen<{ page: string }>("app://navigate", ({ page }) => page && navigate(page)).then((f) => (un = f));
+    // Events sent to the settings window reach every window's listener too; skip its pages.
+    listen<{ page: string }>("app://navigate", ({ page }) => page && !page.startsWith("/settings") && navigate(page)).then(
+      (f) => (un = f),
+    );
     return () => un?.();
   }, [navigate]);
   return null;
