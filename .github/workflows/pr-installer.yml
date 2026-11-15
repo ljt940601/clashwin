@@ -81,7 +81,7 @@ jobs:
         run: |
           @{ identifier = 'app.clashwin.diagnostics'; productName = 'ClashWin Diagnostics' } |
             ConvertTo-Json | Set-Content src-tauri/tauri.diagnostics.conf.json -Encoding utf8
-          npx tauri build --no-bundle --config src-tauri/tauri.diagnostics.conf.json
+          npx tauri build --no-bundle --features diagnostics --config src-tauri/tauri.diagnostics.conf.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           New-Item -ItemType Directory -Path test-diagnostics -Force | Out-Null
           Copy-Item src-tauri/target/release/clashwin.exe test-diagnostics/ClashWin-Diagnostics.exe
