@@ -122,7 +122,7 @@ export default function PermissionsTab() {
             {t(settings.systemProxy ? "settings.sysProxyActive" : "settings.sysProxyInactive")}
           </span>
           {sysBusy && <Spinner size={12} />}
-          <Toggle checked={settings.systemProxy} disabled={!!sysBusy} onChange={(v) => toggleSystemProxy(v)} />
+          <Toggle checked={settings.systemProxy} onChange={(v) => toggleSystemProxy(v)} />
         </FormRow>
         <FormRow label={t("settings.sysProxyBypass")} desc={t("settings.sysProxyBypassDesc")}>
           <span className="st-value ellipsis mono" style={{ maxWidth: 220 }} title={net.bypass.join("; ")}>

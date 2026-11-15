@@ -103,7 +103,6 @@ function ToolbarSwitch({
         className={cx("tb-switch", kind, on && "on", busy && "busy")}
         aria-pressed={on}
         aria-busy={busy}
-        disabled={busy}
         icon={
           <>
             <span key={`${iconKey}-${swaps}`} className={cx("tb-switch-icon", swaps > 0 && "pop")}>

@@ -715,14 +715,14 @@ export default function TrayPanel() {
           <span className="tr-row-label">{t("tray.systemProxy")}</span>
           <span className="tr-row-right">
             {busy.sysproxy && <Spinner size={12} />}
-            <Toggle checked={settings.systemProxy} disabled={!!busy.sysproxy} onChange={(v) => toggleSystemProxy(v)} />
+            <Toggle checked={settings.systemProxy} onChange={(v) => toggleSystemProxy(v)} />
           </span>
         </div>
         <div className="tr-row tall" onClick={() => toggleTun(!settings.tunMode)} {...plainRowProps}>
           <span className="tr-row-label">{t("tray.enhancedMode")}</span>
           <span className="tr-row-right">
             {busy.tun && <Spinner size={12} />}
-            <Toggle checked={settings.tunMode} disabled={!!busy.tun} onChange={(v) => toggleTun(v)} />
+            <Toggle checked={settings.tunMode} onChange={(v) => toggleTun(v)} />
           </span>
         </div>
 
