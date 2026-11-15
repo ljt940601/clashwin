@@ -56,28 +56,3 @@ jobs:
           retention-days: 14
           compression-level: 0
           if-no-files-found: error
-      # Production output is already saved. Only the validation copy enables
-      # DevTools and uses a separate single-instance identity for desktop QA.
-      - name: Build isolated desktop validation executable
-        shell: pwsh
-        run: |
-          @{ identifier = 'app.clashwin.releasevalidation'; productName = 'ClashWin Release Validation' } |
-            ConvertTo-Json | Set-Content src-tauri/tauri.validation.conf.json -Encoding utf8
-          $path = 'src-tauri/src/windows.rs'
-          $source = Get-Content $path -Raw
-          $source.Replace('.title("ClashWin")', '.title("ClashWin Release Validation").devtools(true)') |
-            Set-Content $path -Encoding utf8
-          npx tauri build --no-bundle --features tauri/devtools --config src-tauri/tauri.validation.conf.json
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          New-Item -ItemType Directory validation | Out-Null
-          Copy-Item src-tauri/target/release/clashwin.exe validation/ClashWin-Validation.exe
-          $hash = (Get-FileHash validation/ClashWin-Validation.exe -Algorithm SHA256).Hash.ToLowerInvariant()
-          @{ commit = '${{ github.sha }}'; identifier = 'app.clashwin.releasevalidation'; sha256 = $hash } |
-            ConvertTo-Json | Set-Content validation/build-info.json -Encoding utf8
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ClashWin-validation-${{ github.sha }}
-          path: validation/
-          retention-days: 14
-          compression-level: 0
-          if-no-files-found: error
