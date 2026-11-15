@@ -34,6 +34,12 @@ pub fn run() {
     let paths = Paths::new();
     let _ = paths.ensure();
     util::init_logger(&paths.logs);
+    // Release builds abort on panic without a console, so record it in the log first.
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        log::error!("panic: {info}");
+        default_hook(info);
+    }));
     log::info!("ClashWin {} starting (elevated: {})", env!("CARGO_PKG_VERSION"), admin::is_elevated());
 
     // A previous instance may be relaunching us (elevation); let it exit first.
